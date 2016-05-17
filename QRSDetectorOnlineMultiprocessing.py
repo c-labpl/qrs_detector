@@ -4,7 +4,7 @@ from scipy.signal import butter, lfilter, find_peaks_cwt
 from pygame import mixer
 from multiprocessing import Process, freeze_support
 from time import gmtime, strftime
-
+import time
 
 class QRSDetectorMultiprocessing(Process):
 
@@ -41,9 +41,11 @@ class QRSDetectorMultiprocessing(Process):
          self.THRESHOLDI2 = 0
          self.QRSPeak = []
          self.NOISEPeak = []
-         self.RRInterval = 37 # previously 17
+
+         self.RRInterval = 230 # previously 17
          self.RRCurrent = 0
-         self.QRSInterval = 12
+         # TODO - moze nie skalowac jesli bufor nie bedzie skalowany
+         self.QRSInterval = 75 # 12
          self.recentBPM = []
 
          # Data logger set up.
@@ -67,7 +69,7 @@ class QRSDetectorMultiprocessing(Process):
          # self.audio_control_file = open("audio.txt")
 
          # Log file initialization.
-         filename = "data/qrs_%s_%s_datalog.txt" % (strftime("%Y-%m-%d_%H-%M-%S", gmtime()), self.name)
+         filename = "logs523hz/qrs_%s_%s_datalog.txt" % (strftime("%Y-%m-%d_%H-%M-%S", gmtime()), self.name)
          self.f = open(filename, 'w')
          self.f.truncate()
 
@@ -84,7 +86,7 @@ class QRSDetectorMultiprocessing(Process):
 		print "Initializing serial port."
 #		 /dev/cu.usbmodem1411
 #            COM5
-		self.arduino = serial.Serial(self.port, 9600)
+		self.arduino = serial.Serial(self.port, 115200)
 		self.updateData = True
 		print "Ready."
 
@@ -118,12 +120,18 @@ class QRSDetectorMultiprocessing(Process):
 	'''
      	def startUpdatingData(self):
            while self.updateData:
+
+            total_time = time.time()
+            start_time = time.time()
+
             with open("audio.txt") as aud:
              line = aud.readline()
              if not(line == '0' or line == '1'):
                 line = '0'
              self.playSound = int(line) 
-         
+             print "audio %f" % (time.time() - start_time) 
+            
+            start_time = time.time()
             update = self.arduino.readline().rstrip().split(';')
          
             if len(update) < 2:
@@ -133,42 +141,58 @@ class QRSDetectorMultiprocessing(Process):
                 self.measurement = float(update[1])
             except Exception:
                 continue
+            print "parse %f" % (time.time() - start_time) 
 
-            self.cycleList(200, self.rawSignal, self.measurement)
+            # print self.measurement
+            # TODO - moze nie skalowac
+            start_time = time.time()
+            self.cycleList(200, self.rawSignal, self.measurement) # 200
             self.RRCurrent = self.RRCurrent + 1
 
             if (len(self.rawSignal) == 1):
 		        continue;
+            print "cycle %f" % (time.time() - start_time) 
 
+            start_time = time.time()
             ## Bandpass filter - pass band 5-15 Hz.
-            fs = 84.0
+            fs = 523.0
             lowcut = 5.0
             highcut = 15.0
             self.bandPassSignal = self.butterBandpassFilter(self.rawSignal, lowcut, highcut, fs, order=1)
+            print "bandpass %f" % (time.time() - start_time) 
 
+            start_time = time.time()
             ## Derivative - provide QRS slope info. Five point derivative. Delay 1 sample.
             self.differentiatedSignal = np.diff(self.bandPassSignal)
             self.differentiatedSignal = self.differentiatedSignal / max(self.differentiatedSignal)
+            print "derivative %f" % (time.time() - start_time) 
 
+            start_time = time.time()
             ## Squaring - signal is squared point by point. Non-linear apflification of derivative.
             self.squaredSignal = self.differentiatedSignal * self.differentiatedSignal
             self.squaredSignal = self.squaredSignal / max(self.squaredSignal)
+            print "square %f" % (time.time() - start_time) 
 
             # Moving-window integration - to obtain waveform feature information in addition to the slope.
-            # Time window should be of the length of longest possible QRS complex - 30 samples (150 ms) for 200 samples/s.
-            N = 12
+            # Time window should be of the length of longest possible QRS complex - 75 samples (150 ms) for 200 samples/s.
+            start_time = time.time()
+            N = 75
             self.integratedSignal = np.convolve(self.squaredSignal, np.ones((N,)) / N)
+            print "integral %f" % (time.time() - start_time) 
 
             '''
             QRS detection phase.
             '''
             # Fiducial mark - peak detection.
+            start_time = time.time()
             fiducialMark = []
             peaksIndices = find_peaks_cwt(self.integratedSignal[:-1], np.arange(10,15), noise_perc=0.1)
             for peakIndex in peaksIndices:
 		        fiducialMark.append((peakIndex, self.integratedSignal[peakIndex]))
+            print "find peaks %f" % (time.time() - start_time)
 
             # Thresholding detected peaksself.
+            start_time = time.time()
             if (self.RRCurrent > self.RRInterval):
 		        if len(fiducialMark) > 0 and fiducialMark[-1][0]  > len(self.integratedSignal) - self.QRSInterval:
 		            if fiducialMark[-1][1] > self.THRESHOLDI1:
@@ -194,10 +218,13 @@ class QRSDetectorMultiprocessing(Process):
             self.detectedPulse = 0
             self.interbeatInterval = 0.0
             self.playSound = 0
+            print "thresholding %f" % (time.time() - start_time)
+            print "total %f" % (time.time() - total_time)
+            print "--"
               
 if __name__ == "__main__":
     freeze_support() 
-    QRSDetector = QRSDetectorMultiprocessing("test", "COM3")
+    QRSDetector = QRSDetectorMultiprocessing("test", "/dev/cu.usbmodem1411")
     QRSDetector.playSound = 1
     QRSDetector.daemon = True
     QRSDetector.start()
