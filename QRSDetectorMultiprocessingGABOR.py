@@ -1,8 +1,8 @@
-import sys, os, random, cfg
+import sys, os, random#, cfg
 cwd = os.getcwd()
-os.chdir("../base")
-sys.path += ["../base"]
-from media import get_counter
+#os.chdir("../base")
+#sys.path += ["../base"]
+#from media import get_counter
 os.chdir(cwd)
 import serial
 import numpy as np
@@ -219,7 +219,8 @@ class QRSDetectorMultiprocessing(Process):
 		            self.THRESHOLDI1 = self.NPKI + 0.25 * (self.SPKI - self.NPKI)
 		            self.THRESHOLDI2 = 0.5 * self.THRESHOLDI1
 
-            self.f.write("%d %f %f %d %f \n" % (get_counter(), self.timestamp, self.measurement, self.detectedPulse, self.interbeatInterval))
+            # self.f.write("%d %f %f %d %f \n" % (get_counter(), self.timestamp, self.measurement, self.detectedPulse, self.interbeatInterval))
+            self.f.write("%d %f %f %d %f \n" % (0, self.timestamp, self.measurement, self.detectedPulse, self.interbeatInterval))
             self.detectedPulse = 0
             self.interbeatInterval = 0.0
             self.playSound = 0
