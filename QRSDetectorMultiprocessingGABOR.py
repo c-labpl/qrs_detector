@@ -1,14 +1,13 @@
-import sys, os, random#, cfg
-cwd = os.getcwd()
-#os.chdir("../base")
-#sys.path += ["../base"]
-#from media import get_counter
-os.chdir(cwd)
+# import sys, os, random, cfg
+# cwd = os.getcwd()
+# os.chdir("../base")
+# sys.path += ["../base"]
+# from media import get_counter
+# os.chdir(cwd)
 import serial
 import numpy as np
 from scipy.signal import butter, lfilter, find_peaks_cwt
 from pygame import mixer
-#from matplotlib import pyplot as plt
 from multiprocessing import Process, freeze_support
 from time import gmtime, strftime
 import time
@@ -120,10 +119,11 @@ class QRSDetectorMultiprocessing(Process):
 	    b, a = self.butterBandpass(lowcut, highcut, fs, order=order)
 	    y = lfilter(b, a, data)
 	    return y
-
+    
 	'''
 	Loading data.
 	'''
+
      	def startUpdatingData(self):
            while self.updateData:
             
@@ -137,17 +137,24 @@ class QRSDetectorMultiprocessing(Process):
              self.playSound = int(line) 
             print "audio %f" % (time.time() - start_time) 
 
+            parse_start_time = time.time()
             start_time = time.time()
-            update = self.arduino.readline().rstrip().split(';')
-         
+
+            update =  self.arduino.readline().split(';')
+            print "-split %f" % (time.time() - start_time) 
+
+            start_time = time.time()
             if len(update) < 2:
+                print "continue"
                 continue
             try:
-                self.timestamp = float(update[0])
+                self.timestamp = int(update[0])
                 self.measurement = float(update[1])
             except Exception:
+                print "Exception"
                 continue
-            print "parse %f" % (time.time() - start_time) 
+            print "-assign and float %f" % (time.time() - start_time) 
+            print "parse %f" % (time.time() - parse_start_time) 
 
             # TODO - moze nie skalowac
             start_time = time.time()
@@ -192,6 +199,7 @@ class QRSDetectorMultiprocessing(Process):
             start_time = time.time()
             fiducialMark = []
             peaksIndices = find_peaks_cwt(self.integratedSignal[:-1], np.arange(10,15), noise_perc=0.1)
+
             for peakIndex in peaksIndices:
 		        fiducialMark.append((peakIndex, self.integratedSignal[peakIndex]))
             print "find peaks %f" % (time.time() - start_time)
