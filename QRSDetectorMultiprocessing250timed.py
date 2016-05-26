@@ -12,6 +12,9 @@ from multiprocessing import Process, freeze_support
 from time import gmtime, strftime
 import time
 
+from libs.findpeaks import findpeaks # janko_slavic
+from libs import detect_peaks # detect_peaks tony berta
+
 class QRSDetectorMultiprocessing(Process):
 
 	'''
@@ -47,10 +50,9 @@ class QRSDetectorMultiprocessing(Process):
          self.THRESHOLDI2 = 0
          self.QRSPeak = []
          self.NOISEPeak = []
-         self.RRInterval = 230 # CHANGED
+         self.RRInterval = 112
          self.RRCurrent = 0
-         # TODO - moze nie skalowac jesli bufor nie bedzie skalowany
-         self.QRSInterval = 75 # 12 CHANGED
+         self.QRSInterval = 36
          self.recentBPM = []
 
          # Data logger set up.
@@ -119,14 +121,13 @@ class QRSDetectorMultiprocessing(Process):
 	    b, a = self.butterBandpass(lowcut, highcut, fs, order=order)
 	    y = lfilter(b, a, data)
 	    return y
-    
+
 	'''
 	Loading data.
 	'''
-
      	def startUpdatingData(self):
            while self.updateData:
-            
+
             total_time = time.time()
             start_time = time.time()
 
@@ -140,23 +141,20 @@ class QRSDetectorMultiprocessing(Process):
             parse_start_time = time.time()
             start_time = time.time()
 
-            update =  self.arduino.readline().split(';')
+            update = self.arduino.readline().rstrip().split(';')
             print "-split %f" % (time.time() - start_time) 
 
             start_time = time.time()
             if len(update) < 2:
-                print "continue"
                 continue
             try:
-                self.timestamp = int(update[0])
+                self.timestamp = float(update[0])
                 self.measurement = float(update[1])
             except Exception:
-                print "Exception"
                 continue
             print "-assign and float %f" % (time.time() - start_time) 
-            print "parse %f" % (time.time() - parse_start_time) 
+            print "parse %f" % (time.time() - parse_start_time)
 
-            # TODO - moze nie skalowac
             start_time = time.time()
             self.cycleList(200, self.rawSignal, self.measurement)
             self.RRCurrent = self.RRCurrent + 1
@@ -167,8 +165,8 @@ class QRSDetectorMultiprocessing(Process):
 
             ## Bandpass filter - pass band 5-15 Hz.
             start_time = time.time()
-            fs = 523.0
-            lowcut = 5.0
+            fs = 255.0
+            lowcut = 0.0
             highcut = 15.0
             self.bandPassSignal = self.butterBandpassFilter(self.rawSignal, lowcut, highcut, fs, order=1)
             print "bandpass %f" % (time.time() - start_time) 
@@ -188,7 +186,7 @@ class QRSDetectorMultiprocessing(Process):
             # Moving-window integration - to obtain waveform feature information in addition to the slope.
             # Time window should be of the length of longest possible QRS complex - 30 samples (150 ms) for 200 samples/s.
             start_time = time.time()
-            N = 75
+            N = 15
             self.integratedSignal = np.convolve(self.squaredSignal, np.ones((N,)) / N)
             print "integral %f" % (time.time() - start_time) 
 
@@ -198,7 +196,7 @@ class QRSDetectorMultiprocessing(Process):
             # Fiducial mark - peak detection.
             start_time = time.time()
             fiducialMark = []
-            peaksIndices = find_peaks_cwt(self.integratedSignal[:-1], np.arange(10,15), noise_perc=0.1)
+            peaksIndices = findpeaks(self.integratedSignal, limit=0.07, spacing=50)
 
             for peakIndex in peaksIndices:
 		        fiducialMark.append((peakIndex, self.integratedSignal[peakIndex]))
@@ -212,7 +210,7 @@ class QRSDetectorMultiprocessing(Process):
 				     self.detectedPulse = 1
 				     self.QRSPeak.append(fiducialMark[-1][0])
 				     self.SPKI = 0.125 * fiducialMark[-1][1] + 0.875 * self.SPKI
-				     print "PULSE"
+				     print "PULSE", fiducialMark[-1][1]
 				     if self.playSound == 1:
 						self.s.play()
 				     currentBPM = 60.0 / ((1.0 / fs) * self.RRCurrent)
@@ -232,6 +230,7 @@ class QRSDetectorMultiprocessing(Process):
             self.detectedPulse = 0
             self.interbeatInterval = 0.0
             self.playSound = 0
+
             print "thresholding %f" % (time.time() - start_time)
             print "total %f" % (time.time() - total_time)
             print "--"
