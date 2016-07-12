@@ -172,7 +172,7 @@ class QRSDetectorMultiprocessing(Process):
             '''
             # Fiducial mark - peak detection.
             fiducialMark = []
-            peaksIndices = findpeaks(self.integratedSignal, limit=0.07, spacing=50)
+            peaksIndices = self.findpeaks(self.integratedSignal, limit=0.07, spacing=50)
             for peakIndex in peaksIndices:
 		        fiducialMark.append((peakIndex, self.integratedSignal[peakIndex]))
             # Thresholding detected peaks.
@@ -202,38 +202,38 @@ class QRSDetectorMultiprocessing(Process):
             self.interbeatInterval = 0.0
             self.playSound = 0
 
-def findpeaks(data, spacing=1, limit=None):
-    """Finds peaks in `data` which are of `spacing` width and >=`limit`.
-    :param data: values
-    :param spacing: minimum spacing to the next peak (should be 1 or more)
-    :param limit: peaks should have value greater or equal
-    :return:
-    """
-    len = data.size
-    x = np.zeros(len+2*spacing)
-    x[:spacing] = data[0]-1.e-6
-    x[-spacing:] = data[-1]-1.e-6
-    x[spacing:spacing+len] = data
-    peak_candidate = np.zeros(len)
-    peak_candidate[:] = True
-    for s in range(spacing):
-        start = spacing - s - 1
-        h_b = x[start : start + len]  # before
-        start = spacing
-        h_c = x[start : start + len]  # central
-        start = spacing + s + 1
-        h_a = x[start : start + len]  # after
-        peak_candidate = np.logical_and(peak_candidate, np.logical_and(h_c > h_b, h_c > h_a))
+        def findpeaks(self, data, spacing=1, limit=None):
+            """Finds peaks in `data` which are of `spacing` width and >=`limit`.
+            :param data: values
+            :param spacing: minimum spacing to the next peak (should be 1 or more)
+            :param limit: peaks should have value greater or equal
+            :return:
+            """
+            len = data.size
+            x = np.zeros(len+2*spacing)
+            x[:spacing] = data[0]-1.e-6
+            x[-spacing:] = data[-1]-1.e-6
+            x[spacing:spacing+len] = data
+            peak_candidate = np.zeros(len)
+            peak_candidate[:] = True
+            for s in range(spacing):
+                start = spacing - s - 1
+                h_b = x[start : start + len]  # before
+                start = spacing
+                h_c = x[start : start + len]  # central
+                start = spacing + s + 1
+                h_a = x[start : start + len]  # after
+                peak_candidate = np.logical_and(peak_candidate, np.logical_and(h_c > h_b, h_c > h_a))
 
-    ind = np.argwhere(peak_candidate)
-    ind = ind.reshape(ind.size)
-    if limit is not None:
-        ind = ind[data[ind] > limit]
-    return ind
+            ind = np.argwhere(peak_candidate)
+            ind = ind.reshape(ind.size)
+            if limit is not None:
+                ind = ind[data[ind] > limit]
+            return ind
               
 if __name__ == "__main__":
     freeze_support() 
-    QRSDetector = QRSDetectorMultiprocessing("test", "/dev/cu.usbmodem1411")
+    QRSDetector = QRSDetectorMultiprocessing("test", "COM5")
     QRSDetector.playSound = 1
     QRSDetector.daemon = True
     QRSDetector.start()
