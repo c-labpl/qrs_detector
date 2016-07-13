@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
-import matplotlib.pyplot as plt
 from scipy.signal import butter, lfilter
 
 
-# TODO: Find a wy (create a module) for keeping both online and offline algo version synced.
+# TODO: Find a way (create a module) for keeping both online and offline algo version synced.
 class QRSDetector(object):
     """QRS complex detector."""
 
@@ -133,67 +132,8 @@ class QRSDetector(object):
             # TODO: Check whether this threshold is used.
             self.threshold_i_2 = 0.5 * self.threshold_i_1
 
-
-    ## Visualization methods.
-
-    def plot_everything(self):
-        ## Plot everything.
-        plt.figure(figsize=(9, 12))
-        plt.subplot(711)
-        plt.plot(self.raw_signal, label="Original signal", color="salmon")
-        plt.grid(True)
-        plt.axis("tight")
-
-        plt.subplot(712)
-        plt.plot(self.filtered_signal, label="Filtered signal", color="salmon")
-        plt.grid(True)
-        plt.axis("tight")
-
-        plt.subplot(713)
-        plt.plot(self.differentiated_signal, label="Differentiated signal", color="salmon")
-        plt.grid(True)
-        plt.axis("tight")
-
-        plt.subplot(714)
-        plt.plot(self.squared_signal, label="Squared signal", color="salmon")
-        plt.grid(True)
-        plt.axis("tight")
-
-        fiducial_mark_indication_i = [0] * len(self.integrated_signal)
-        for peak_idx_i, peak_val_i in zip(self.fiducial_mark_idx, self.fiducial_mark_val_i):
-            fiducial_mark_indication_i[int(peak_idx_i)] = peak_val_i
-        plt.subplot(715)
-        plt.plot(self.integrated_signal, label="Integrated signal", color="salmon")
-        plt.plot(fiducial_mark_indication_i, 'k.')
-        plt.grid(True)
-        plt.axis("tight")
-
-        qrs_peak_indication_i = [0] * len(self.integrated_signal)
-        for peak_i in self.qrs_peak_i:
-            qrs_peak_indication_i[int(peak_i)] = self.raw_signal[int(peak_i)]
-        noise_peak_indication_i = [0] * len(self.integrated_signal)
-        for peak_i in self.noise_peak_i:
-            noise_peak_indication_i[int(peak_i)] = self.raw_signal[int(peak_i)]
-
-        plt.subplot(716)
-        plt.plot(self.raw_signal, label="Integrated signal", color="salmon")
-        plt.plot(qrs_peak_indication_i, 'k.')
-        plt.plot(noise_peak_indication_i, 'yo')
-        plt.grid(True)
-        plt.axis("tight")
-
-        plt.subplot(717)
-        plt.plot(self.raw_signal, 'k.', label="Integrated signal", color="salmon")
-        plt.plot(qrs_peak_indication_i, 'k.')
-        plt.plot(noise_peak_indication_i, 'yo')
-        plt.grid(True)
-        plt.axis("tight")
-
-        plt.show()
-
 if __name__ == "__main__":
     qrs_detector = QRSDetector("data250hz/pulse5.csv")
     qrs_detector.load_data()
     qrs_detector.process_data()
     qrs_detector.threshold_peaks()
-    qrs_detector.plot_everything()
