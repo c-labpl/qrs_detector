@@ -31,7 +31,7 @@ class QRSDetector(object):
         self.serial = None
 
         ## Received data.
-        self.line = None
+        self.data_line = None
         self.timestamp = None
         self.measurement = None
 
@@ -51,9 +51,10 @@ class QRSDetector(object):
         self.noise_peak_i = np.array([])
 
         ## Integrated signal detection and thresholding params.
-        self.spk_i = 0.0
-        self.npk_i = 0.0
-        self.threshold_i = 0.0
+        # TODO: Check this initialization parameters - are they better than zeroes?
+        self.spk_i = 0.4
+        self.npk_i = 0.1
+        self.threshold_i = 0.06
 
 
     ## Lifecycle handling methods - public interface.
@@ -65,7 +66,7 @@ class QRSDetector(object):
     def start_updating_data(self):
         while True:
             # TODO: Time reading data - it was really long before.
-            self.line = self.serial.readline()
+            self.data_line = self.serial.readline()
             self.process_line()
 
     # TODO: Implement a method for breaking this infinite loop from other place in code.
@@ -82,7 +83,7 @@ class QRSDetector(object):
         """Parsing raw data line."""
 
         # TODO: Time whole processing time without update. Compare to old algo.
-        update = self.line.rstrip().split(';')
+        update = self.data_line.rstrip().split(';')
 
         if len(update) < 2:
             return
@@ -97,6 +98,11 @@ class QRSDetector(object):
         # TODO: Check whether deque can be used later as numpy array.
         # TODO: Check whether deque is faster that 200 elements cycle list (old relatime version). Time it.
         self.raw_signal.append(self.measurement)
+
+        # TODO: Check whether this is needed.
+        if len(self.raw_signal) == 1:
+            return
+
         self.process_data()
 
     def process_data(self):

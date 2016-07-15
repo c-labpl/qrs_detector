@@ -175,6 +175,7 @@ class QRSDetectorMultiprocessing(Process):
             peaksIndices = self.findpeaks(self.integratedSignal, limit=0.07, spacing=50)
             for peakIndex in peaksIndices:
 		        fiducialMark.append((peakIndex, self.integratedSignal[peakIndex]))
+
             # Thresholding detected peaks.
             if (self.RRCurrent > self.RRInterval):
 		        if len(fiducialMark) > 0 and fiducialMark[-1][0]  > len(self.integratedSignal) - self.QRSInterval:
