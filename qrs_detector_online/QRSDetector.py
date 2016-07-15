@@ -4,6 +4,8 @@ import numpy as np
 from scipy.signal import butter, lfilter
 import serial
 from collections import deque
+from Logger import Logger
+
 
 # TODO: Find a way (create a module) for keeping both online and offline algo version synced.
 class QRSDetector(object):
@@ -46,16 +48,19 @@ class QRSDetector(object):
         self.fiducial_mark_val_i = np.array([])
         self.fiducial_mark_idx_i = np.array([])
 
-        ## Peak thresholding variables.
-        self.qrs_peak_i = np.array([])
-        self.noise_peak_i = np.array([])
-
         ## Integrated signal detection and thresholding params.
         # TODO: Check this initialization parameters - are they better than zeroes?
         self.spk_i = 0.4
         self.npk_i = 0.1
         self.threshold_i = 0.06
 
+        ## Peak thresholding variables.
+        self.qrs_peak_i = np.array([])
+        self.noise_peak_i = np.array([])
+        self.detected_beat_indicator = 0
+
+        # Data logger set up.
+        self.logger = Logger("QRS", " ", "timestamp", "ecg", "beat_detected")
 
     ## Lifecycle handling methods - public interface.
 
@@ -76,11 +81,12 @@ class QRSDetector(object):
     def disconnect_arduino(self):
         self.serial.close()
 
-
     ## Data processing methods - offline.
 
     def process_line(self):
         """Parsing raw data line."""
+
+        self.detected_beat_indicator = 0
 
         # TODO: Time whole processing time without update. Compare to old algo.
         update = self.data_line.rstrip().split(';')
@@ -152,6 +158,7 @@ class QRSDetector(object):
                     if peak_val_i > self.threshold_i:
                         # TODO: Invent some way to pass information about detection other than playing sound here. Something like delegate method - it should implement playing sound or whatever - here there should be no audio player code at all.
                         print "PULSE detected!"
+                        self.detected_beat_indicator = 1
                         self.rr_interval = 0
                         # TODO: Move these filter params to params section.
                         self.spk_i = 0.125 * peak_val_i + 0.875 * self.spk_i
@@ -164,6 +171,7 @@ class QRSDetector(object):
 
                     self.threshold_i = self.npk_i + 0.25 * (self.spk_i - self.npk_i)
 
+        self.logger.log(str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator))
 
     ## Tool methods.
 
