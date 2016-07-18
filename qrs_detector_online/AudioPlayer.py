@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 from pygame import mixer
 
 
@@ -13,4 +15,3 @@ class AudioPlayer(object):
 if __name__ == "__main__":
     player = AudioPlayer(filepath="audio/beep.wav")
     player.play()
-

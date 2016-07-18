@@ -66,6 +66,8 @@ class QRSDetector(object):
         # Audio player set up.
         self.play_sound = play_sound
         self.player = AudioPlayer(filepath="audio/beep.wav")
+
+        # OUT!!!!!
         if self.play_sound:
             self.player.play()
 

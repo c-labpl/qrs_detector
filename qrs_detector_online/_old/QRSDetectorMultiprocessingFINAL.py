@@ -238,4 +238,4 @@ if __name__ == "__main__":
     QRSDetector.playSound = 1
     QRSDetector.daemon = True
     QRSDetector.start()
-    QRSDetector.join() 
+    QRSDetector.join()
