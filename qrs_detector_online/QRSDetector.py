@@ -5,13 +5,14 @@ from scipy.signal import butter, lfilter
 import serial
 from collections import deque
 from Logger import Logger
+from AudioPlayer import AudioPlayer
 
 
 # TODO: Find a way (create a module) for keeping both online and offline algo version synced.
 class QRSDetector(object):
     """QRS complex detector."""
 
-    def __init__(self, port, baud_rate):
+    def __init__(self, port, baud_rate, play_sound):
         """Variables initialization."""
 
         ## General params.
@@ -61,6 +62,13 @@ class QRSDetector(object):
 
         # Data logger set up.
         self.logger = Logger("QRS", " ", "timestamp", "ecg", "beat_detected")
+
+        # Audio player set up.
+        self.play_sound = play_sound
+        self.player = AudioPlayer(filepath="audio/beep.wav")
+        if self.play_sound:
+            self.player.play()
+
 
     ## Lifecycle handling methods - public interface.
 
@@ -216,6 +224,6 @@ class QRSDetector(object):
         return ind
 
 if __name__ == "__main__":
-    qrs_detector = QRSDetector("COM5", "115200")
+    qrs_detector = QRSDetector(port="COM5", baud_rate="115200", play_sound=True)
     # qrs_detector.connect_to_arduino()
     # qrs_detector.start_updating_data()

@@ -17,3 +17,7 @@ class Logger(object):
 
     def close(self):
         self.fout.close()
+
+if __name__ == "__main__":
+    logger = Logger("test", ",", "test1", "tes2")
+    logger.log("1", "2")
