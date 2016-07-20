@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-
 import numpy as np
 from scipy.signal import butter, lfilter
 import serial
@@ -7,8 +6,6 @@ from collections import deque
 from Logger import Logger
 from AudioPlayer import AudioPlayer
 
-
-# TODO: Find a way (create a module) for keeping both online and offline algo version synced.
 class QRSDetector(object):
     """QRS complex detector."""
 
@@ -16,22 +13,22 @@ class QRSDetector(object):
         """Variables initialization."""
 
         ## General params.
-        self.signal_freq = 255          # signal frequency
-        self.filter_lowcut = 0.0        # band pass filter low cut value
-        self.filter_highcut = 15.0      # band pass filter high cut value
-        self.integration_window = 15    # signal integration window length in samples
+        self.signal_freq = 255              # signal frequency
+        self.filter_lowcut = 0.0            # band pass filter low cut value
+        self.filter_highcut = 15.0          # band pass filter high cut value
+        self.integration_window = 15        # signal integration window length in samples
 
         ## Realtime params.
-        self.cycling_window = 200       # samples
-        self.rr_interval = 0            # samples
-        self.refractory_period = 112    # samples
-        # TODO: Refactor this name to be more meaningful.
-        self.detection_window = 36      # samples
+        self.cycling_window = 100           # samples
+        self.r_interval = 0                 # samples
+        self.refractory_period = 50         # samples
+        self.buffer_detection_window = 10   # samples
 
         ## Connection details.
         self.port = port
         self.baud_rate = baud_rate
         self.serial = None
+        self.update_data = True
 
         ## Received data.
         self.data_line = None
@@ -45,15 +42,13 @@ class QRSDetector(object):
         self.squared_signal = np.array([])
         self.integrated_signal = np.array([])
 
-        ## Peak detection variables.
-        self.fiducial_mark_val_i = np.array([])
-        self.fiducial_mark_idx_i = np.array([])
-
         ## Integrated signal detection and thresholding params.
-        # TODO: Check this initialization parameters - are they better than zeroes?
-        self.spk_i = 0.4
-        self.npk_i = 0.1
-        self.threshold_i = 0.06
+        self.spk_i = 0.0
+        self.npk_i = 0.0
+        self.threshold_i = 0.0
+        self.spk_i_measurement_weight = 0.125
+        self.npk_i_measurement_weight = 0.125
+        self.threshold_i_diff_weight = 0.25
 
         ## Peak thresholding variables.
         self.qrs_peak_i = np.array([])
@@ -65,40 +60,36 @@ class QRSDetector(object):
 
         # Audio player set up.
         self.play_sound = play_sound
-        self.player = AudioPlayer(filepath="audio/beep.wav")
-
-        # OUT!!!!!
-        if self.play_sound:
-            self.player.play()
+        self.player = AudioPlayer(file_path="audio/beep.wav")
 
 
     ## Lifecycle handling methods - public interface.
 
     def connect_to_arduino(self):
         self.serial = serial.Serial(self.port, self.baud_rate)
+        print "Connected!"
 
-    # TODO: Check step by step with breakpoints values of fields and whether they are the way they should be.
     def start_updating_data(self):
-        while True:
-            # TODO: Time reading data - it was really long before.
+        print "Detecting!"
+        self.update_data = True
+        while self.update_data:
             self.data_line = self.serial.readline()
             self.process_line()
 
-    # TODO: Implement a method for breaking this infinite loop from other place in code.
     def stop_updating_data(self):
-        pass
+        self.update_data = False
 
     def disconnect_arduino(self):
         self.serial.close()
 
-    ## Data processing methods - offline.
+
+    ## Data processing methods.
 
     def process_line(self):
         """Parsing raw data line."""
 
         self.detected_beat_indicator = 0
 
-        # TODO: Time whole processing time without update. Compare to old algo.
         update = self.data_line.rstrip().split(';')
 
         if len(update) < 2:
@@ -109,13 +100,9 @@ class QRSDetector(object):
         except Exception:
             return
 
-        self.rr_interval += 1
-        # TODO: Check whether it works as supposed.
-        # TODO: Check whether deque can be used later as numpy array.
-        # TODO: Check whether deque is faster that 200 elements cycle list (old relatime version). Time it.
+        self.r_interval += 1
         self.raw_signal.append(self.measurement)
 
-        # TODO: Check whether this is needed.
         if len(self.raw_signal) == 1:
             return
 
@@ -140,6 +127,10 @@ class QRSDetector(object):
         # Fiducial mark - peak detection - integrated signal.
         self.peaks_indices = self.findpeaks(self.integrated_signal, limit=0.30, spacing=50)
 
+        ## Peak detection variables.
+        self.fiducial_mark_idx_i = np.array([])
+        self.fiducial_mark_val_i = np.array([])
+
         for peak_index in self.peaks_indices:
             self.fiducial_mark_idx_i = np.append(self.fiducial_mark_idx_i, peak_index)
             self.fiducial_mark_val_i = np.append(self.fiducial_mark_val_i, self.integrated_signal[peak_index])
@@ -148,11 +139,9 @@ class QRSDetector(object):
 
     def threshold_peaks(self):
         """Thresholding detected peaks - integrated - signal."""
-
         # Check whether refractory period has passed.
         # After a valid QRS complex detection, there is a 200 ms refractory period before the next one can be detected.
-        # TODO: By the book this period should be 200 ms - 52 samples. Check why in old implmentation it was 112 samples long.
-        if self.rr_interval > self.refractory_period:
+        if self.r_interval > self.refractory_period:
 
             # Check whether any peak was detected in analysed samples window.
             if len(self.fiducial_mark_idx_i) > 0:
@@ -160,28 +149,27 @@ class QRSDetector(object):
                 # Take the last one detected in analysed samples window.
                 peak_idx_i, peak_val_i = self.fiducial_mark_idx_i[-1], self.fiducial_mark_val_i[-1]
 
-                # Check whether detected peak occured within defined detection past detection.
-                # TODO: Check validity of this filter. Whether it works? Maybe it can be thrown away? Or it can be very strict (right now it allows detection 140 ms in the past).
-                if peak_idx_i > self.cycling_window - self.detection_window:
+                # Check whether detected peak occured within defined window from end of samples buffer - making sure that the same peak will not be detected twice.
+                if peak_idx_i > self.cycling_window - self.buffer_detection_window:
 
                     # Peak must be classified as a noise peak or a signal peak. To be a signal peak it must exceed threshold_i_1.
                     if peak_val_i > self.threshold_i:
-                        # TODO: Invent some way to pass information about detection other than playing sound here. Something like delegate method - it should implement playing sound or whatever - here there should be no audio player code at all.
-                        print "PULSE detected!"
+                        print "QRS detected!"
+                        self.handle_detection()
                         self.detected_beat_indicator = 1
-                        self.rr_interval = 0
-                        # TODO: Move these filter params to params section.
-                        self.spk_i = 0.125 * peak_val_i + 0.875 * self.spk_i
+                        self.r_interval = 0
+
+                        self.spk_i = self.spk_i_measurement_weight * peak_val_i + (1 - self.spk_i_measurement_weight) * self.spk_i
                         self.qrs_peak_i = np.append(self.qrs_peak_i, peak_idx_i)
                     else:
                         print "NOISE detected!"
-                        # TODO: Move these filter params to params section.
-                        self.npk_i = 0.125 * peak_val_i + 0.875 * self.npk_i
+                        self.npk_i = self.npk_i_measurement_weight * peak_val_i + (1 - self.npk_i_measurement_weight) * self.npk_i
                         self.noise_peak_i = np.append(self.noise_peak_i, peak_idx_i)
 
-                    self.threshold_i = self.npk_i + 0.25 * (self.spk_i - self.npk_i)
+                    self.threshold_i = self.npk_i + self.threshold_i_diff_weight * (self.spk_i - self.npk_i)
 
         self.logger.log(str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator))
+
 
     ## Tool methods.
 
@@ -225,7 +213,12 @@ class QRSDetector(object):
             ind = ind[data[ind] > limit]
         return ind
 
+    def handle_detection(self):
+        if self.play_sound:
+            self.player.play()
+
+
 if __name__ == "__main__":
-    qrs_detector = QRSDetector(port="COM5", baud_rate="115200", play_sound=True)
-    # qrs_detector.connect_to_arduino()
-    # qrs_detector.start_updating_data()
+    qrs_detector = QRSDetector(port="/dev/cu.usbmodem1411", baud_rate="115200", play_sound=True)
+    qrs_detector.connect_to_arduino()
+    qrs_detector.start_updating_data()

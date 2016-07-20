@@ -1,9 +1,3 @@
-import sys, os, random, cfg
-cwd = os.getcwd()
-os.chdir("../base")
-sys.path += ["../base"]
-from media import get_counter
-os.chdir(cwd)
 import serial
 import numpy as np
 from scipy.signal import butter, lfilter
@@ -68,15 +62,15 @@ class QRSDetectorMultiprocessing(Process):
 
          # Audio initialization.
          mixer.init()
-         self.s = mixer.Sound('beep_ok.wav')
-         self.audio_control_file = open("audio.txt")
+         self.s = mixer.Sound('beep.wav')
+         # self.audio_control_file = open("audio.txt")
 
          # Log file initialization.
          filename = "data/qrs_%s_%s_datalog.txt" % (strftime("%Y-%m-%d_%H-%M-%S", gmtime()), self.name)
          self.f = open(filename, 'w')
          self.f.truncate()
 
-         self.f.write("%s %s %s %s %s \n" % ("sysTime", "timestamp", "ecg", "beat", "ibi"))
+         self.f.write("%s %s %s %s \n" % ("timestamp", "ecg", "beat", "ibi"))
 
          # Arduino init.
          self.connectToArduino()
@@ -87,8 +81,6 @@ class QRSDetectorMultiprocessing(Process):
 	'''
 	def connectToArduino(self):
 		print "Initializing serial port."
-#		 /dev/cu.usbmodem1411
-#            COM5
 		self.arduino = serial.Serial(self.port, 115200)
 		self.updateData = True
 		print "Ready."
@@ -127,8 +119,8 @@ class QRSDetectorMultiprocessing(Process):
              line = aud.readline()
              if not(line == '0' or line == '1'):
                 line = '0'
-             self.playSound = int(line) 
-         
+             self.playSound = 1
+
             update = self.arduino.readline().rstrip().split(';')
          
             if len(update) < 2:
@@ -176,6 +168,8 @@ class QRSDetectorMultiprocessing(Process):
             for peakIndex in peaksIndices:
 		        fiducialMark.append((peakIndex, self.integratedSignal[peakIndex]))
 
+            # print peaksIndices, fiducialMark, self.RRCurrent
+
             # Thresholding detected peaks.
             if (self.RRCurrent > self.RRInterval):
 		        if len(fiducialMark) > 0 and fiducialMark[-1][0]  > len(self.integratedSignal) - self.QRSInterval:
@@ -189,7 +183,7 @@ class QRSDetectorMultiprocessing(Process):
 				     currentBPM = 60.0 / ((1.0 / fs) * self.RRCurrent)
 				     self.interbeatInterval = ((1.0 / fs) * self.RRCurrent)
 				     self.cycleList(5, self.recentBPM, currentBPM)
-				     print "BPM", sum(self.recentBPM) / len(self.recentBPM)
+				     # print "BPM", sum(self.recentBPM) / len(self.recentBPM)
 				     self.RRCurrent = 0
 		            else:
 		                self.NOISEPeak.append(fiducialMark[-1][0])
@@ -198,7 +192,7 @@ class QRSDetectorMultiprocessing(Process):
 		            self.THRESHOLDI1 = self.NPKI + 0.25 * (self.SPKI - self.NPKI)
 		            self.THRESHOLDI2 = 0.5 * self.THRESHOLDI1
 
-            self.f.write("%d %f %f %d %f \n" % (get_counter(), self.timestamp, self.measurement, self.detectedPulse, self.interbeatInterval))
+            self.f.write("%f %f %d %f \n" % (self.timestamp, self.measurement, self.detectedPulse, self.interbeatInterval))
             self.detectedPulse = 0
             self.interbeatInterval = 0.0
             self.playSound = 0
@@ -234,7 +228,7 @@ class QRSDetectorMultiprocessing(Process):
               
 if __name__ == "__main__":
     freeze_support() 
-    QRSDetector = QRSDetectorMultiprocessing("test", "COM5")
+    QRSDetector = QRSDetectorMultiprocessing("test", "/dev/cu.usbmodem1411")
     QRSDetector.playSound = 1
     QRSDetector.daemon = True
     QRSDetector.start()
