@@ -3,15 +3,19 @@ import numpy as np
 from scipy.signal import butter, lfilter
 import serial
 from collections import deque
+from multiprocessing import Process, freeze_support
 from Logger import Logger
 from AudioPlayer import AudioPlayer
 
 
-class QRSDetectorMultiprocessing(object):
+class QRSDetectorMultiprocessing(Process):
     """QRS complex detector."""
 
     def __init__(self, port, baud_rate, play_sound):
         """Variables initialization."""
+
+        # Multiprocessing setup.
+        super(QRSDetectorMultiprocessing, self).__init__()
 
         # General params.
         self.signal_freq = 255  # signal frequency
@@ -56,12 +60,22 @@ class QRSDetectorMultiprocessing(object):
         self.noise_peak_i = np.array([])
         self.detected_beat_indicator = 0
 
-        # Data logger set up.
-        self.logger = Logger("QRS", " ", "timestamp", "ecg", "beat_detected")
-
         # Audio player set up.
         self.play_sound = play_sound
+
+
+    # Multiprocessing lifecycle.
+
+    def run(self):
+
+        # Data logger initialization.
+        self.logger = Logger("QRS", " ", "timestamp", "ecg", "beat_detected")
+
+        # Audio player initialization.
         self.player = AudioPlayer(file_path="audio/beep.wav")
+
+        self.connect_to_arduino()
+        self.start_updating_data()
 
 
     # Lifecycle handling methods - public interface.
@@ -222,6 +236,8 @@ class QRSDetectorMultiprocessing(object):
 
 
 if __name__ == "__main__":
+    freeze_support()
     qrs_detector = QRSDetectorMultiprocessing(port="/dev/cu.usbmodem1411", baud_rate="115200", play_sound=True)
-    qrs_detector.connect_to_arduino()
-    qrs_detector.start_updating_data()
+    qrs_detector.daemon = True
+    qrs_detector.start()
+    qrs_detector.join()
