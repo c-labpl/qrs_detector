@@ -7,7 +7,7 @@ from Logger import Logger
 from AudioPlayer import AudioPlayer
 
 
-class QRSDetector(object):
+class QRSDetectorMultiprocessing(object):
     """QRS complex detector."""
 
     def __init__(self, port, baud_rate, play_sound):
@@ -222,6 +222,6 @@ class QRSDetector(object):
 
 
 if __name__ == "__main__":
-    qrs_detector = QRSDetector(port="/dev/cu.usbmodem1411", baud_rate="115200", play_sound=True)
+    qrs_detector = QRSDetectorMultiprocessing(port="/dev/cu.usbmodem1411", baud_rate="115200", play_sound=True)
     qrs_detector.connect_to_arduino()
     qrs_detector.start_updating_data()
