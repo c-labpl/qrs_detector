@@ -4,13 +4,11 @@ from scipy.signal import butter, lfilter
 import serial
 from collections import deque
 from Logger import Logger
-from AudioPlayer import AudioPlayer
-
 
 class QRSDetector(object):
     """QRS complex detector."""
 
-    def __init__(self, port, baud_rate, play_sound):
+    def __init__(self, port, baud_rate):
         """Variables initialization."""
 
         # General params.
@@ -20,10 +18,13 @@ class QRSDetector(object):
         self.integration_window = 15  # signal integration window length in samples
 
         # Realtime params.
-        self.cycling_window = 100  # samples
+        self.cycling_window = 200  # samples
+        self.refractory_period = 120  # samples
+        self.buffer_detection_window = 40  # samples
+
+        # Detection describtion.
         self.r_interval = 0  # samples
-        self.refractory_period = 50  # samples
-        self.buffer_detection_window = 10  # samples
+        self.peak_timestamp = 0 # seconds
 
         # Connection details.
         self.port = port
@@ -33,7 +34,7 @@ class QRSDetector(object):
 
         # Received data.
         self.data_line = None
-        self.timestamp = None
+        self.timestamp = 0.0
         self.measurement = None
 
         # Signal processing variables.
@@ -57,11 +58,7 @@ class QRSDetector(object):
         self.detected_beat_indicator = 0
 
         # Data logger set up.
-        self.logger = Logger("QRS", " ", "timestamp", "ecg", "beat_detected")
-
-        # Audio player set up.
-        self.play_sound = play_sound
-        self.player = AudioPlayer(file_path="audio/beep.wav")
+        self.logger = Logger("QRS", " ", "timestamp", "ecg", "beat_detected", "ibi")
 
 
     # Lifecycle handling methods - public interface.
@@ -69,6 +66,7 @@ class QRSDetector(object):
     def connect_to_arduino(self):
         self.serial = serial.Serial(self.port, self.baud_rate)
         print "Connected!"
+        self.handle_detection()
 
     def start_updating_data(self):
         print "Detecting!"
@@ -155,10 +153,10 @@ class QRSDetector(object):
 
                     # Peak must be classified as a noise peak or a signal peak. To be a signal peak it must exceed threshold_i_1.
                     if peak_val_i > self.threshold_i:
-                        print "QRS detected!"
                         self.handle_detection()
                         self.detected_beat_indicator = 1
                         self.r_interval = 0
+                        self.peak_timestamp = self.timestamp
 
                         self.spk_i = self.spk_i_measurement_weight * peak_val_i + (
                                                                                       1 - self.spk_i_measurement_weight) * self.spk_i
@@ -171,8 +169,7 @@ class QRSDetector(object):
 
                     self.threshold_i = self.npk_i + self.threshold_i_diff_weight * (self.spk_i - self.npk_i)
 
-        self.logger.log(str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator))
-
+        self.logger.log(str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator), str(self.timestamp - self.peak_timestamp))
 
     # Tool methods.
 
@@ -217,11 +214,16 @@ class QRSDetector(object):
         return ind
 
     def handle_detection(self):
-        if self.play_sound:
-            self.player.play()
+        # print "Pulse"
+        with open("flag.txt", "w") as fout:
+                    fout.write("%s %s %s %s" % (str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator), str(self.timestamp - self.peak_timestamp)))
 
 
-if __name__ == "__main__":
-    qrs_detector = QRSDetector(port="/dev/cu.usbmodem1411", baud_rate="115200", play_sound=True)
-    qrs_detector.connect_to_arduino()
-    qrs_detector.start_updating_data()
+qrs_detector = QRSDetector(port="/dev/cu.usbmodem1411", baud_rate="115200")
+qrs_detector.connect_to_arduino()
+qrs_detector.start_updating_data()
+
+# if __name__ == "__main__":
+#     qrs_detector = QRSDetector(port="/dev/cu.usbmodem1411", baud_rate="115200")
+#     qrs_detector.connect_to_arduino()
+#     qrs_detector.start_updating_data()

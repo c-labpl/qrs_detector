@@ -140,7 +140,7 @@ class QRSDetectorMultiprocessing(Process):
         self.integrated_signal = np.convolve(self.squared_signal, np.ones(self.integration_window))
 
         # Fiducial mark - peak detection - integrated signal.
-        self.peaks_indices = self.findpeaks(self.integrated_signal, limit=0.30, spacing=50)
+        self.peaks_indices = self.findpeaks(self.integrated_signal, limit=0.40, spacing=50)
 
         ## Peak detection variables.
         self.fiducial_mark_idx_i = np.array([])
