@@ -1,9 +1,13 @@
 # -*- coding: utf-8 -*-
+
 import numpy as np
 from scipy.signal import butter, lfilter
 import serial
 from collections import deque
+import sys
 from Logger import Logger
+
+# call: python QRSDetector.py "/dev/cu.usbmodem1411"
 
 class QRSDetector(object):
     """QRS complex detector."""
@@ -24,7 +28,8 @@ class QRSDetector(object):
 
         # Detection describtion.
         self.r_interval = 0  # samples
-        self.peak_timestamp = 0 # seconds
+        self.peak_timestamp = 100000000000 # seconds
+        self.last_peak_timestamp = 0 
 
         # Connection details.
         self.port = port
@@ -153,9 +158,10 @@ class QRSDetector(object):
 
                     # Peak must be classified as a noise peak or a signal peak. To be a signal peak it must exceed threshold_i_1.
                     if peak_val_i > self.threshold_i:
-                        self.handle_detection()
                         self.detected_beat_indicator = 1
                         self.r_interval = 0
+                        self.handle_detection()
+                        self.logger.log(str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator), str(self.timestamp - self.peak_timestamp))
                         self.peak_timestamp = self.timestamp
 
                         self.spk_i = self.spk_i_measurement_weight * peak_val_i + (
@@ -166,10 +172,24 @@ class QRSDetector(object):
                         self.npk_i = self.npk_i_measurement_weight * peak_val_i + (
                                                                                       1 - self.npk_i_measurement_weight) * self.npk_i
                         self.noise_peak_i = np.append(self.noise_peak_i, peak_idx_i)
+                        self.logger.log(str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator), str(self.timestamp - self.peak_timestamp))
 
                     self.threshold_i = self.npk_i + self.threshold_i_diff_weight * (self.spk_i - self.npk_i)
 
-        self.logger.log(str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator), str(self.timestamp - self.peak_timestamp))
+                else:
+                    self.logger.log(str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator), str(self.timestamp - self.peak_timestamp))
+
+            else:
+                self.logger.log(str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator), str(self.timestamp - self.peak_timestamp))
+
+        else:
+            self.logger.log(str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator), str(self.timestamp - self.peak_timestamp))
+
+    def handle_detection(self):
+        print "Pulse"
+        with open("flag.txt", "w") as fout:
+                    fout.write("%s %s %s %s" % (str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator), str(self.timestamp - self.peak_timestamp)))
+        print "%s %s %s %s" % (str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator), str(self.timestamp - self.peak_timestamp))
 
     # Tool methods.
 
@@ -213,17 +233,7 @@ class QRSDetector(object):
             ind = ind[data[ind] > limit]
         return ind
 
-    def handle_detection(self):
-        # print "Pulse"
-        with open("flag.txt", "w") as fout:
-                    fout.write("%s %s %s %s" % (str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator), str(self.timestamp - self.peak_timestamp)))
-
-
-qrs_detector = QRSDetector(port="/dev/cu.usbmodem1411", baud_rate="115200")
+script, port = sys.argv
+qrs_detector = QRSDetector(port=port, baud_rate="115200")
 qrs_detector.connect_to_arduino()
 qrs_detector.start_updating_data()
-
-# if __name__ == "__main__":
-#     qrs_detector = QRSDetector(port="/dev/cu.usbmodem1411", baud_rate="115200")
-#     qrs_detector.connect_to_arduino()
-#     qrs_detector.start_updating_data()
