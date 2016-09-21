@@ -189,7 +189,6 @@ class QRSDetector(object):
         print "Pulse"
         with open("flag.txt", "w") as fout:
                     fout.write("%s %s %s %s" % (str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator), str(self.timestamp - self.peak_timestamp)))
-        print "%s %s %s %s" % (str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator), str(self.timestamp - self.peak_timestamp))
 
     # Tool methods.
 
