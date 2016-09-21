@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 This experiment was created using PsychoPy2 Experiment Builder (v1.84.0rc5),
-    on Wed Sep 21 19:03:04 2016
+    on Wed Sep 21 23:08:02 2016
 If you publish work using this script please cite the PsychoPy publications:
     Peirce, JW (2007) PsychoPy - Psychophysics software in Python.
         Journal of Neuroscience Methods, 162(1-2), 8-13.
@@ -70,7 +70,7 @@ trialClock = core.Clock()
 ISI = core.StaticPeriod(win=win, screenHz=expInfo['frameRate'], name='ISI')
 image = visual.ImageStim(
     win=win, name='image',
-    image=u'resources/bird.jpg', mask=None,
+    image='resources/bird.jpg', mask=None,
     ori=0, pos=(0, 0), size=(0.5, 0.5),
     color=[1,1,1], colorSpace='rgb', opacity=1,
     flipHoriz=False, flipVert=False,
@@ -78,7 +78,7 @@ image = visual.ImageStim(
 import subprocess
 import glob
 
-# Start QRSDetector as subprocess.
+# Start QRSDetector as subprocess. Change port to correct one.
 p = subprocess.Popen(["python", "QRSDetector.py", "/dev/cu.usbmodem1411"], shell=False)
 
 # Initialize audio feedback setup.
@@ -133,10 +133,13 @@ while continueRoutine and routineTimer.getTime() > 0:
     if len(split_last_line) == 4:
         string = "LOG %s %s %s %s" % (split_last_line[0], split_last_line[1], split_last_line[2], split_last_line[3])  
         logging.log(level=logging.DATA, msg=string)
-    else:
+    elif len(lines) >= 2 and lines[-2].strip().split(" ") == 4:
         split_lastbutone_line = lines[-2].strip().split(" ")
         string = "LOG %s %s %s %s" % (split_lastbutone_line[0], split_lastbutone_line[1], split_lastbutone_line[2], split_lastbutone_line[3])  
         logging.log(level=logging.DATA, msg=string)
+    else:
+        logging.log(level=logging.DATA, msg="No data")
+    
     
     # Check if QRS peak was detected and trigger events if yes.
     peak_detected = os.path.exists("flag.txt")
