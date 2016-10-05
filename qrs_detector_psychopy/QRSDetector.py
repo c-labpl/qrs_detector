@@ -171,18 +171,18 @@ class QRSDetector(object):
                         self.npk_i = self.npk_i_measurement_weight * peak_val_i + (
                                                                                       1 - self.npk_i_measurement_weight) * self.npk_i
                         self.noise_peak_i = np.append(self.noise_peak_i, peak_idx_i)
-                        self.logger.log(str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator), str(self.timestamp - self.peak_timestamp))
+                        self.logger.log(str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator), "0")
 
                     self.threshold_i = self.npk_i + self.threshold_i_diff_weight * (self.spk_i - self.npk_i)
 
                 else:
-                    self.logger.log(str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator), str(self.timestamp - self.peak_timestamp))
+                    self.logger.log(str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator), "0")
 
             else:
-                self.logger.log(str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator), str(self.timestamp - self.peak_timestamp))
+                self.logger.log(str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator), "0")
 
         else:
-            self.logger.log(str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator), str(self.timestamp - self.peak_timestamp))
+            self.logger.log(str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator), "0")
 
     def handle_detection(self):
         print "Pulse"
