@@ -168,7 +168,6 @@ class QRSDetector(object):
                                                                                       1 - self.spk_i_measurement_weight) * self.spk_i
                         self.qrs_peak_i = np.append(self.qrs_peak_i, peak_idx_i)
                     else:
-                        print "NOISE detected!"
                         self.npk_i = self.npk_i_measurement_weight * peak_val_i + (
                                                                                       1 - self.npk_i_measurement_weight) * self.npk_i
                         self.noise_peak_i = np.append(self.noise_peak_i, peak_idx_i)

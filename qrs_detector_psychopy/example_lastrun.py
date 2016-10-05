@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 This experiment was created using PsychoPy2 Experiment Builder (v1.84.0rc5),
-    on Wed Sep 21 23:08:02 2016
+    on Wed Oct  5 20:46:20 2016
 If you publish work using this script please cite the PsychoPy publications:
     Peirce, JW (2007) PsychoPy - Psychophysics software in Python.
         Journal of Neuroscience Methods, 162(1-2), 8-13.
@@ -82,15 +82,11 @@ import glob
 p = subprocess.Popen(["python", "QRSDetector.py", "/dev/cu.usbmodem1411"], shell=False)
 
 # Initialize audio feedback setup.
-# sound.Sound()
-#audio = psychopy.sound.SoundPyo(value='C', secs=0.2, volume=5.0)
 audio = sound.Sound(value='500', secs=0.2)
  
 # Initialize QRSDetector log file.
 qrs_log_file = max(glob.iglob('data/*.csv'), key=os.path.getctime)
-print "QRSLog:", qrs_log_file
 fin = open(qrs_log_file, "r")
-
 
 # Create some handy timers
 globalClock = core.Clock()  # to track the time since experiment started
@@ -103,7 +99,15 @@ frameN = -1
 continueRoutine = True
 routineTimer.add(8.000000)
 # update component parameters for each repeat
+# Initialize frame counter.
+counter = 0
 
+# Initialize internal clock.
+routine_clock = core.Clock()
+
+# Initialize procedure triger with delay.
+last_peak = 10000000
+did_trigger = False
 # keep track of which components have finished
 trialComponents = [ISI, image]
 for thisComponent in trialComponents:
@@ -126,6 +130,9 @@ while continueRoutine and routineTimer.getTime() > 0:
     frameRemains = 0.0 + 8- win.monitorFramePeriod * 0.75  # most of one frame period left
     if image.status == STARTED and t >= frameRemains:
         image.setAutoDraw(False)
+    #Update frame counter.
+    counter += 1
+    
     # Log last qrs measurement in every frame.
     lines = fin.readlines()
     fin.seek(0)
@@ -161,8 +168,17 @@ while continueRoutine and routineTimer.getTime() > 0:
         # Do whatever else.
         print "Peak detected!"
         
+        # Setup delay triger.
+        last_peak = routine_clock.getTime()
+        did_trigger = False
+    
         # Do not remove this.
         os.remove("flag.txt")
+    
+    # Trigger event after specified delay from last qrs detection.
+    if routine_clock.getTime() - last_peak >= 0.013 and not did_trigger:
+        print "BEEP"
+        did_trigger = True
     
     # *ISI* period
     if t >= 0.0 and ISI.status == NOT_STARTED:
