@@ -10,6 +10,24 @@ class QRSDetector(object):
     def __init__(self, port, baud_rate):
         """Variables initialization and start reading ECG measurements."""
 
+        # Parameters.
+        self.cycling_window = 200  # samples
+
+        # Detection description.
+        self.detected_beat_indicator = 0
+        self.qrs_interval = 0  # samples
+
+        # Received the most recent measurement.
+        self.timestamp = 0.0
+        self.measurement = None
+
+        # Most recent measurements array.
+        self.most_recent_measurements = deque([], self.cycling_window)
+
+        # Run the detector.
+        self.connect_to_ecg(port=port, baud_rate=baud_rate)
+
+
 
 
 
@@ -24,22 +42,13 @@ class QRSDetector(object):
         self.integration_window = 15  # signal integration window length in samples
 
         # Realtime params.
-        self.cycling_window = 200  # samples
         self.refractory_period = 120  # samples
         self.buffer_detection_window = 40  # samples
 
-        # Detection describtion.
-        self.r_interval = 0  # samples
         self.peak_timestamp = 100000000000  # seconds
         self.last_peak_timestamp = 0
 
-        # Received data.
-        self.data_line = None
-        self.timestamp = 0.0
-        self.measurement = None
-
         # Signal processing variables.
-        self.raw_signal = deque([], self.cycling_window)
         self.filtered = np.array([])
         self.differentiated_signal = np.array([])
         self.squared_signal = np.array([])
@@ -56,15 +65,13 @@ class QRSDetector(object):
         # Peak thresholding variables.
         self.qrs_peak_i = np.array([])
         self.noise_peak_i = np.array([])
-        self.detected_beat_indicator = 0
+
 
         # Data logger set up.
         self.logger = Logger("QRS", " ", "timestamp", "ecg", "beat_detected", "ibi")
 
 
 
-        # Run the detector.
-        self.connect_to_ecg(self, port=port, baud_rate=baud_rate)
 
 
 
@@ -79,48 +86,55 @@ class QRSDetector(object):
             return
 
         while True:
-            # TODO: Add encoding for Python 3.
-            self.data_line = serial_port.readline()
-            self.process_measurement()
-
-
+            raw_measurement = serial_port.readline()
+            self.process_measurement(raw_measurement=raw_measurement)
 
 
     # Data processing methods.
-    def process_measurement(self):
+    def process_measurement(self, raw_measurement):
         """Parsing raw data line."""
 
+        # TODO: Refactor detected_beat_indicator - move it from here.
         self.detected_beat_indicator = 0
 
-        update = self.data_line.rstrip().split(';')
+        # TODO: Add encoding for Python 3.
+        raw_measurement_split = raw_measurement.rstrip().split(';')
 
-        if len(update) < 2:
+        # TODO: Change it to == 2 - need to test it with real data.
+        if len(raw_measurement_split) < 2:
             return
-
         try:
-            timestamp = float(update[0])
-            measurement = float(update[1])
+            timestamp = float(raw_measurement_split[0])
+            measurement = float(raw_measurement_split[1])
         except Exception:
             return
 
+        # Not physiologically possible ECG error measurements rejection.
         if measurement > 10:
             return
 
+        # TODO: Check whether it can be done differently or move somewhere.
+        self.qrs_interval += 1
+
+        # TODO: Remove it - it is used only for logging. Find different way.
         self.timestamp = timestamp
         self.measurement = measurement
 
-        self.r_interval += 1
-        self.raw_signal.append(self.measurement)
+        self.most_recent_measurements.append(self.measurement)
 
-        if len(self.raw_signal) == 1:
+        if len(self.most_recent_measurements) == 1:
             return
 
         self.extract_peaks()
 
+
+
+
+
     def extract_peaks(self):
         """Proceses received data."""
         # Signal filtering - band pass 0-15 Hz.
-        self.filtered_signal = self.bandpass_filter(self.raw_signal, lowcut=self.filter_lowcut,
+        self.filtered_signal = self.bandpass_filter(self.most_recent_measurements, lowcut=self.filter_lowcut,
                                                     highcut=self.filter_highcut, signal_freq=self.signal_freq,
                                                     filter_order=1)
 
@@ -146,12 +160,16 @@ class QRSDetector(object):
 
         self.detect_qrs()
 
+
+
+
+
     # Detection methods.
     def detect_qrs(self):
         """Thresholding detected peaks - integrated - signal."""
         # Check whether refractory period has passed.
         # After a valid QRS complex detection, there is a 200 ms refractory period before the next one can be detected.
-        if self.r_interval > self.refractory_period:
+        if self.qrs_interval > self.refractory_period:
 
             # Check whether any peak was detected in analysed samples window.
             if len(self.fiducial_mark_idx_i) > 0:
@@ -165,7 +183,7 @@ class QRSDetector(object):
                     # Peak must be classified as a noise peak or a signal peak. To be a signal peak it must exceed threshold_i_1.
                     if peak_val_i > self.threshold_i:
                         self.detected_beat_indicator = 1
-                        self.r_interval = 0
+                        self.qrs_interval = 0
                         self.handle_detection()
                         self.logger.log(str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator),
                                         str(self.timestamp - self.peak_timestamp))
