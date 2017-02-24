@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 import numpy as np
 from scipy.signal import butter, lfilter
 import serial
@@ -8,18 +6,26 @@ import sys
 from Logger import Logger
 
 
-# call: python QRSDetector.py "/dev/cu.usbmodem1411"
-
 class QRSDetector(object):
     """QRS complex detector."""
 
     def __init__(self, port, baud_rate):
         """Variables initialization."""
 
+        # Connection details.
+        self.port = port
+        self.baud_rate = baud_rate
+        self.serial = None
+        self.update_data = True
+
         # General params.
         self.signal_freq = 255  # signal frequency
+
+        # Filtering parameters.
         self.filter_lowcut = 0.0  # band pass filter low cut value
         self.filter_highcut = 15.0  # band pass filter high cut value
+
+        # Integration window.
         self.integration_window = 15  # signal integration window length in samples
 
         # Realtime params.
@@ -31,12 +37,6 @@ class QRSDetector(object):
         self.r_interval = 0  # samples
         self.peak_timestamp = 100000000000  # seconds
         self.last_peak_timestamp = 0
-
-        # Connection details.
-        self.port = port
-        self.baud_rate = baud_rate
-        self.serial = None
-        self.update_data = True
 
         # Received data.
         self.data_line = None
@@ -66,28 +66,21 @@ class QRSDetector(object):
         # Data logger set up.
         self.logger = Logger("QRS", " ", "timestamp", "ecg", "beat_detected", "ibi")
 
-    # Lifecycle handling methods - public interface.
-
-    def connect_to_arduino(self):
+    # ECG interfacing methods.
+    def connect_to_ecg(self):
         self.serial = serial.Serial(self.port, self.baud_rate)
         print "Connected!"
         self.handle_detection()
 
-    def start_updating_data(self):
+    def start_reading_measurements(self):
         print "Detecting!"
         self.update_data = True
         while self.update_data:
             self.data_line = self.serial.readline()
-            self.process_line()
-
-    def stop_updating_data(self):
-        self.update_data = False
-
-    def disconnect_arduino(self):
-        self.serial.close()
+            self.process_measurement()
 
     # Data processing methods.
-    def process_line(self):
+    def process_measurement(self):
         """Parsing raw data line."""
 
         self.detected_beat_indicator = 0
@@ -115,14 +108,14 @@ class QRSDetector(object):
         if len(self.raw_signal) == 1:
             return
 
-        self.process_data()
+        self.extract_peaks()
 
-    def process_data(self):
+    def extract_peaks(self):
         """Proceses received data."""
         # Signal filtering - band pass 0-15 Hz.
-        self.filtered_signal = self.butter_bandpass_filter(self.raw_signal, lowcut=self.filter_lowcut,
-                                                           highcut=self.filter_highcut, signal_freq=self.signal_freq,
-                                                           order=1)
+        self.filtered_signal = self.bandpass_filter(self.raw_signal, lowcut=self.filter_lowcut,
+                                                    highcut=self.filter_highcut, signal_freq=self.signal_freq,
+                                                    filter_order=1)
 
         # Derivative - provides QRS slope info.
         self.differentiated_signal = np.ediff1d(self.filtered_signal)
@@ -144,9 +137,10 @@ class QRSDetector(object):
             self.fiducial_mark_idx_i = np.append(self.fiducial_mark_idx_i, peak_index)
             self.fiducial_mark_val_i = np.append(self.fiducial_mark_val_i, self.integrated_signal[peak_index])
 
-        self.threshold_peaks()
+        self.detect_qrs()
 
-    def threshold_peaks(self):
+    # Detection methods.
+    def detect_qrs(self):
         """Thresholding detected peaks - integrated - signal."""
         # Check whether refractory period has passed.
         # After a valid QRS complex detection, there is a 200 ms refractory period before the next one can be detected.
@@ -201,14 +195,13 @@ class QRSDetector(object):
             fout.write("%s %s %s %s" % (str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator),
                                         str(self.timestamp - self.peak_timestamp)))
 
-    # Tool methods.
-
-    def butter_bandpass_filter(self, data, lowcut, highcut, signal_freq, order):
+    # Tools methods.
+    def bandpass_filter(self, data, lowcut, highcut, signal_freq, filter_order):
         """Constructs signal filter and uses it to given dataset."""
         nyquist_freq = 0.5 * signal_freq
         low = lowcut / nyquist_freq
         high = highcut / nyquist_freq
-        b, a = butter(order, [low, high], btype="band")
+        b, a = butter(filter_order, [low, high], btype="band")
         y = lfilter(b, a, data)
         return y
 
@@ -247,5 +240,5 @@ class QRSDetector(object):
 if __name__ == "__main__":
     script, port = sys.argv
     qrs_detector = QRSDetector(port=port, baud_rate="115200")
-    qrs_detector.connect_to_arduino()
-    qrs_detector.start_updating_data()
+    qrs_detector.connect_to_ecg()
+    qrs_detector.start_reading_measurements()
