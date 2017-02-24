@@ -1,22 +1,17 @@
+import serial
 import numpy as np
 from scipy.signal import butter, lfilter
-import serial
 from collections import deque
-import sys
 from Logger import Logger
-
 
 class QRSDetector(object):
     """QRS complex detector."""
 
     def __init__(self, port, baud_rate):
-        """Variables initialization."""
+        """Variables initialization and start reading ECG measurements."""
 
-        # Connection details.
-        self.port = port
-        self.baud_rate = baud_rate
-        self.serial = None
-        self.update_data = True
+
+
 
         # General params.
         self.signal_freq = 255  # signal frequency
@@ -66,18 +61,30 @@ class QRSDetector(object):
         # Data logger set up.
         self.logger = Logger("QRS", " ", "timestamp", "ecg", "beat_detected", "ibi")
 
-    # ECG interfacing methods.
-    def connect_to_ecg(self):
-        self.serial = serial.Serial(self.port, self.baud_rate)
-        print "Connected!"
-        self.handle_detection()
 
-    def start_reading_measurements(self):
-        print "Detecting!"
-        self.update_data = True
-        while self.update_data:
-            self.data_line = self.serial.readline()
+
+        # Run the detector.
+        self.connect_to_ecg(self, port=port, baud_rate=baud_rate)
+
+
+
+
+    # ECG interfacing methods.
+    def connect_to_ecg(self, port, baud_rate):
+        try:
+            serial_port = serial.Serial(port, baud_rate)
+            print("Connected! Starting reading ECG measurements.")
+        except:
+            print("Cannot connect to provided port!")
+            return
+
+        while True:
+            # TODO: Add encoding for Python 3.
+            self.data_line = serial_port.readline()
             self.process_measurement()
+
+
+
 
     # Data processing methods.
     def process_measurement(self):
@@ -191,9 +198,9 @@ class QRSDetector(object):
 
     def handle_detection(self):
         print "Pulse"
-        with open("flag.txt", "w") as fout:
-            fout.write("%s %s %s %s" % (str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator),
-                                        str(self.timestamp - self.peak_timestamp)))
+        # with open("flag.txt", "w") as fout:
+        #     fout.write("%s %s %s %s" % (str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator),
+        #                                 str(self.timestamp - self.peak_timestamp)))
 
     # Tools methods.
     def bandpass_filter(self, data, lowcut, highcut, signal_freq, filter_order):
@@ -238,7 +245,5 @@ class QRSDetector(object):
 
 
 if __name__ == "__main__":
-    script, port = sys.argv
-    qrs_detector = QRSDetector(port=port, baud_rate="115200")
+    qrs_detector = QRSDetector(port="/dev/cu.usbmodem1411", baud_rate="115200")
     qrs_detector.connect_to_ecg()
-    qrs_detector.start_reading_measurements()
