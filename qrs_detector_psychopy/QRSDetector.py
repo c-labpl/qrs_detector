@@ -7,6 +7,7 @@ from collections import deque
 import sys
 from Logger import Logger
 
+
 # call: python QRSDetector.py "/dev/cu.usbmodem1411"
 
 class QRSDetector(object):
@@ -28,8 +29,8 @@ class QRSDetector(object):
 
         # Detection describtion.
         self.r_interval = 0  # samples
-        self.peak_timestamp = 100000000000 # seconds
-        self.last_peak_timestamp = 0 
+        self.peak_timestamp = 100000000000  # seconds
+        self.last_peak_timestamp = 0
 
         # Connection details.
         self.port = port
@@ -65,7 +66,6 @@ class QRSDetector(object):
         # Data logger set up.
         self.logger = Logger("QRS", " ", "timestamp", "ecg", "beat_detected", "ibi")
 
-
     # Lifecycle handling methods - public interface.
 
     def connect_to_arduino(self):
@@ -86,9 +86,7 @@ class QRSDetector(object):
     def disconnect_arduino(self):
         self.serial.close()
 
-
     # Data processing methods.
-
     def process_line(self):
         """Parsing raw data line."""
 
@@ -98,11 +96,18 @@ class QRSDetector(object):
 
         if len(update) < 2:
             return
+
         try:
-            self.timestamp = float(update[0])
-            self.measurement = float(update[1])
+            timestamp = float(update[0])
+            measurement = float(update[1])
         except Exception:
             return
+
+        if measurement > 10:
+            return
+
+        self.timestamp = timestamp
+        self.measurement = measurement
 
         self.r_interval += 1
         self.raw_signal.append(self.measurement)
@@ -161,33 +166,40 @@ class QRSDetector(object):
                         self.detected_beat_indicator = 1
                         self.r_interval = 0
                         self.handle_detection()
-                        self.logger.log(str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator), str(self.timestamp - self.peak_timestamp))
+                        self.logger.log(str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator),
+                                        str(self.timestamp - self.peak_timestamp))
                         self.peak_timestamp = self.timestamp
 
                         self.spk_i = self.spk_i_measurement_weight * peak_val_i + (
                                                                                       1 - self.spk_i_measurement_weight) * self.spk_i
                         self.qrs_peak_i = np.append(self.qrs_peak_i, peak_idx_i)
                     else:
+                        print "NOISE detected!"
                         self.npk_i = self.npk_i_measurement_weight * peak_val_i + (
                                                                                       1 - self.npk_i_measurement_weight) * self.npk_i
                         self.noise_peak_i = np.append(self.noise_peak_i, peak_idx_i)
-                        self.logger.log(str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator), "0")
+                        self.logger.log(str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator),
+                                        str(self.timestamp - self.peak_timestamp))
 
                     self.threshold_i = self.npk_i + self.threshold_i_diff_weight * (self.spk_i - self.npk_i)
 
                 else:
-                    self.logger.log(str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator), "0")
+                    self.logger.log(str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator),
+                                    str(self.timestamp - self.peak_timestamp))
 
             else:
-                self.logger.log(str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator), "0")
+                self.logger.log(str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator),
+                                str(self.timestamp - self.peak_timestamp))
 
         else:
-            self.logger.log(str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator), "0")
+            self.logger.log(str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator),
+                            str(self.timestamp - self.peak_timestamp))
 
     def handle_detection(self):
         print "Pulse"
         with open("flag.txt", "w") as fout:
-                    fout.write("%s %s %s %s" % (str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator), str(self.timestamp - self.peak_timestamp)))
+            fout.write("%s %s %s %s" % (str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator),
+                                        str(self.timestamp - self.peak_timestamp)))
 
     # Tool methods.
 
@@ -230,6 +242,7 @@ class QRSDetector(object):
         if limit is not None:
             ind = ind[data[ind] > limit]
         return ind
+
 
 script, port = sys.argv
 qrs_detector = QRSDetector(port=port, baud_rate="115200")
