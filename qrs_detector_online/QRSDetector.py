@@ -1,16 +1,19 @@
 # -*- coding: utf-8 -*-
+
 import numpy as np
 from scipy.signal import butter, lfilter
 import serial
 from collections import deque
+import sys
 from Logger import Logger
-from AudioPlayer import AudioPlayer
 
+
+# call: python QRSDetector.py "/dev/cu.usbmodem1411"
 
 class QRSDetector(object):
     """QRS complex detector."""
 
-    def __init__(self, port, baud_rate, play_sound):
+    def __init__(self, port, baud_rate):
         """Variables initialization."""
 
         # General params.
@@ -20,10 +23,14 @@ class QRSDetector(object):
         self.integration_window = 15  # signal integration window length in samples
 
         # Realtime params.
-        self.cycling_window = 100  # samples
+        self.cycling_window = 200  # samples
+        self.refractory_period = 120  # samples
+        self.buffer_detection_window = 40  # samples
+
+        # Detection describtion.
         self.r_interval = 0  # samples
-        self.refractory_period = 50  # samples
-        self.buffer_detection_window = 10  # samples
+        self.peak_timestamp = 100000000000  # seconds
+        self.last_peak_timestamp = 0
 
         # Connection details.
         self.port = port
@@ -33,7 +40,7 @@ class QRSDetector(object):
 
         # Received data.
         self.data_line = None
-        self.timestamp = None
+        self.timestamp = 0.0
         self.measurement = None
 
         # Signal processing variables.
@@ -57,18 +64,14 @@ class QRSDetector(object):
         self.detected_beat_indicator = 0
 
         # Data logger set up.
-        self.logger = Logger("QRS", " ", "timestamp", "ecg", "beat_detected")
-
-        # Audio player set up.
-        self.play_sound = play_sound
-        self.player = AudioPlayer(file_path="audio/beep.wav")
-
+        self.logger = Logger("QRS", " ", "timestamp", "ecg", "beat_detected", "ibi")
 
     # Lifecycle handling methods - public interface.
 
     def connect_to_arduino(self):
         self.serial = serial.Serial(self.port, self.baud_rate)
         print "Connected!"
+        self.handle_detection()
 
     def start_updating_data(self):
         print "Detecting!"
@@ -83,9 +86,7 @@ class QRSDetector(object):
     def disconnect_arduino(self):
         self.serial.close()
 
-
     # Data processing methods.
-
     def process_line(self):
         """Parsing raw data line."""
 
@@ -95,11 +96,18 @@ class QRSDetector(object):
 
         if len(update) < 2:
             return
+
         try:
-            self.timestamp = float(update[0])
-            self.measurement = float(update[1])
+            timestamp = float(update[0])
+            measurement = float(update[1])
         except Exception:
             return
+
+        if measurement > 10:
+            return
+
+        self.timestamp = timestamp
+        self.measurement = measurement
 
         self.r_interval += 1
         self.raw_signal.append(self.measurement)
@@ -155,10 +163,12 @@ class QRSDetector(object):
 
                     # Peak must be classified as a noise peak or a signal peak. To be a signal peak it must exceed threshold_i_1.
                     if peak_val_i > self.threshold_i:
-                        print "QRS detected!"
-                        self.handle_detection()
                         self.detected_beat_indicator = 1
                         self.r_interval = 0
+                        self.handle_detection()
+                        self.logger.log(str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator),
+                                        str(self.timestamp - self.peak_timestamp))
+                        self.peak_timestamp = self.timestamp
 
                         self.spk_i = self.spk_i_measurement_weight * peak_val_i + (
                                                                                       1 - self.spk_i_measurement_weight) * self.spk_i
@@ -168,11 +178,28 @@ class QRSDetector(object):
                         self.npk_i = self.npk_i_measurement_weight * peak_val_i + (
                                                                                       1 - self.npk_i_measurement_weight) * self.npk_i
                         self.noise_peak_i = np.append(self.noise_peak_i, peak_idx_i)
+                        self.logger.log(str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator),
+                                        str(self.timestamp - self.peak_timestamp))
 
                     self.threshold_i = self.npk_i + self.threshold_i_diff_weight * (self.spk_i - self.npk_i)
 
-        self.logger.log(str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator))
+                else:
+                    self.logger.log(str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator),
+                                    str(self.timestamp - self.peak_timestamp))
 
+            else:
+                self.logger.log(str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator),
+                                str(self.timestamp - self.peak_timestamp))
+
+        else:
+            self.logger.log(str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator),
+                            str(self.timestamp - self.peak_timestamp))
+
+    def handle_detection(self):
+        print "Pulse"
+        with open("flag.txt", "w") as fout:
+            fout.write("%s %s %s %s" % (str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator),
+                                        str(self.timestamp - self.peak_timestamp)))
 
     # Tool methods.
 
@@ -216,12 +243,9 @@ class QRSDetector(object):
             ind = ind[data[ind] > limit]
         return ind
 
-    def handle_detection(self):
-        if self.play_sound:
-            self.player.play()
-
 
 if __name__ == "__main__":
-    qrs_detector = QRSDetector(port="/dev/cu.usbmodem1411", baud_rate="115200", play_sound=True)
+    script, port = sys.argv
+    qrs_detector = QRSDetector(port=port, baud_rate="115200")
     qrs_detector.connect_to_arduino()
     qrs_detector.start_updating_data()
