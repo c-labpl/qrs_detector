@@ -2,7 +2,6 @@ import serial
 import numpy as np
 from scipy.signal import butter, lfilter
 from collections import deque
-from Logger import Logger
 
 class QRSDetector(object):
     """QRS complex detector."""
@@ -10,64 +9,36 @@ class QRSDetector(object):
     def __init__(self, port, baud_rate):
         """Variables initialization and start reading ECG measurements."""
 
-        # Parameters.
+        # Configuration parameters.
+        self.number_of_most_recent_samples = 200  # samples
         self.signal_freq = 255  # signal frequency
-        self.cycling_window = 200  # samples
-        self.integration_window = 15  # signal integration window length in samples
         self.filter_lowcut = 0.0  # band pass filter low cut value
         self.filter_highcut = 15.0  # band pass filter high cut value
         self.filter_order = 1
+        # TODO: This value should be dynamic when dynamic freq will be implemented.
+        self.integration_window = 15  # signal integration window length in samples
         self.findpeaks_limit = 0.40
         # TODO: This value should be dynamic when dynamic freq will be implemented.
-        self.findpeaks_spacing = 50
-
-        # Detection description.
-        self.detected_beat_indicator = 0
-        # TODO: Could this be time bassed instead of sample number based? If sample based - need to be dynamic when dynamic freq will be implemented.
-        self.qrs_interval = 0  # samples
-
-        # Received the most recent measurement.
-        self.timestamp = 0.0
-        self.measurement = None
-
-        # Most recent measurements array.
-        self.most_recent_measurements = deque([], self.cycling_window)
-
-        # Run the detector.
-        self.connect_to_ecg(port=port, baud_rate=baud_rate)
-
-
-
-
-
-
-        # Realtime params.
+        self.findpeaks_spacing = 50 # samples
+        # TODO: This value should be dynamic when dynamic freq will be implemented.
         self.refractory_period = 120  # samples
+        # TODO: This value should be dynamic when dynamic freq will be implemented.
         self.buffer_detection_window = 40  # samples
+        # TODO: Rename these to more meaningful names.
+        self.spk_i_measurement_weight = 0.125 # detection and thresholding params
+        self.npk_i_measurement_weight = 0.125 # detection and thresholding params
+        self.threshold_i_diff_weight = 0.25 # detection and thresholding params
 
-        self.peak_timestamp = 100000000000  # seconds
-        self.last_peak_timestamp = 0
-
-        # Integrated signal detection and thresholding params.
+        # Measured and calculated values.
+        self.most_recent_measurements = deque([], self.number_of_most_recent_samples)  # most recent measurements array
+        # TODO: Could this be time based instead of sample number based? If sample based - need to be dynamic when dynamic freq will be implemented.
+        self.qrs_interval = 0  # samples
         self.spk_i = 0.0
         self.npk_i = 0.0
         self.threshold_i = 0.0
-        self.spk_i_measurement_weight = 0.125
-        self.npk_i_measurement_weight = 0.125
-        self.threshold_i_diff_weight = 0.25
 
-        # Peak thresholding variables.
-        self.qrs_peak_i = np.array([])
-        self.noise_peak_i = np.array([])
-
-        # Data logger set up.
-        self.logger = Logger("QRS", " ", "timestamp", "ecg", "beat_detected", "ibi")
-
-
-
-
-
-
+        # Run the detector.
+        self.connect_to_ecg(port=port, baud_rate=baud_rate)
 
     # ECG interfacing methods.
     def connect_to_ecg(self, port, baud_rate):
@@ -86,9 +57,6 @@ class QRSDetector(object):
     # Data processing methods.
     def process_measurement(self, raw_measurement):
         """Parsing raw data line."""
-
-        # TODO: Refactor detected_beat_indicator - move it from here.
-        self.detected_beat_indicator = 0
 
         # TODO: Add encoding for Python 3.
         raw_measurement_split = raw_measurement.rstrip().split(';')
@@ -109,15 +77,12 @@ class QRSDetector(object):
         # TODO: Check whether it can be done differently or move somewhere.
         self.qrs_interval += 1
 
-        # TODO: Remove it - it is used only for logging. Find different way.
-        self.timestamp = timestamp
-        self.measurement = measurement
-
-        self.most_recent_measurements.append(self.measurement)
+        self.most_recent_measurements.append(measurement)
 
         if len(self.most_recent_measurements) == 1:
             return
 
+        # TODO: Maybe pass here most_recent_measurements as argument instead of calling self in method? More consistent with others.
         self.extract_peaks()
 
 
@@ -170,45 +135,24 @@ class QRSDetector(object):
                 peak_idx_i, peak_val_i = detected_peaks_indices[-1], detected_peaks_values[-1]
 
                 # Check whether detected peak occured within defined window from end of samples buffer - making sure that the same peak will not be detected twice.
-                if peak_idx_i > self.cycling_window - self.buffer_detection_window:
+                if peak_idx_i > self.number_of_most_recent_samples - self.buffer_detection_window:
 
                     # Peak must be classified as a noise peak or a signal peak. To be a signal peak it must exceed threshold_i_1.
                     if peak_val_i > self.threshold_i:
-                        self.detected_beat_indicator = 1
                         self.qrs_interval = 0
                         self.handle_detection()
-                        self.logger.log(str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator),
-                                        str(self.timestamp - self.peak_timestamp))
-                        self.peak_timestamp = self.timestamp
 
                         self.spk_i = self.spk_i_measurement_weight * peak_val_i + (
                                                                                       1 - self.spk_i_measurement_weight) * self.spk_i
-                        self.qrs_peak_i = np.append(self.qrs_peak_i, peak_idx_i)
                     else:
-                        print "NOISE detected!"
                         self.npk_i = self.npk_i_measurement_weight * peak_val_i + (
                                                                                       1 - self.npk_i_measurement_weight) * self.npk_i
-                        self.noise_peak_i = np.append(self.noise_peak_i, peak_idx_i)
-                        self.logger.log(str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator),
-                                        str(self.timestamp - self.peak_timestamp))
 
                     self.threshold_i = self.npk_i + self.threshold_i_diff_weight * (self.spk_i - self.npk_i)
 
-                else:
-                    self.logger.log(str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator),
-                                    str(self.timestamp - self.peak_timestamp))
-
-            else:
-                self.logger.log(str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator),
-                                str(self.timestamp - self.peak_timestamp))
-
-        else:
-            self.logger.log(str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator),
-                            str(self.timestamp - self.peak_timestamp))
-
 
     def handle_detection(self):
-        print "Pulse"
+        print("Pulse")
 
     # Tools methods.
     def bandpass_filter(self, data, lowcut, highcut, signal_freq, filter_order):
