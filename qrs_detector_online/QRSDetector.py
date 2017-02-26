@@ -74,11 +74,9 @@ class QRSDetector(object):
         if measurement > 10:
             return
 
-        # TODO: Check whether it can be done differently or move somewhere.
-        self.qrs_interval += 1
-
         self.most_recent_measurements.append(measurement)
 
+        # TODO: Why?
         if len(self.most_recent_measurements) == 1:
             return
 
@@ -117,36 +115,38 @@ class QRSDetector(object):
 
         self.detect_qrs(detected_peaks_indices=fiducial_mark_idx_i, detected_peaks_values=fiducial_mark_val_i)
 
-
-
-
-    # TODO: Refactor detection.
     # Detection methods.
     def detect_qrs(self, detected_peaks_indices, detected_peaks_values):
         """Thresholding detected peaks - integrated - signal."""
         # Check whether refractory period has passed.
         # After a valid QRS complex detection, there is a 200 ms refractory period before the next one can be detected.
+
+        # TODO: Check whether it can be done differently.
+        # TODO: Verify whether it does not break things being here.
+        self.qrs_interval += 1
+
+        # Add comment: refactory period - no detection if we are to close physiologically to last detected pulse.
         if self.qrs_interval > self.refractory_period:
 
             # Check whether any peak was detected in analysed samples window.
             if len(detected_peaks_indices) > 0:
 
-                # Take the last one detected in analysed samples window.
+                # Take the last one detected in analysed samples window as the most recent.
+                # TODO: Refactor these names.
                 peak_idx_i, peak_val_i = detected_peaks_indices[-1], detected_peaks_values[-1]
 
                 # Check whether detected peak occured within defined window from end of samples buffer - making sure that the same peak will not be detected twice.
+                # TODO: This is strange. Something can be done here to make it more obvious.
+                # TODO: Also - why do we need this? Analyse this.
                 if peak_idx_i > self.number_of_most_recent_samples - self.buffer_detection_window:
 
                     # Peak must be classified as a noise peak or a signal peak. To be a signal peak it must exceed threshold_i_1.
                     if peak_val_i > self.threshold_i:
                         self.qrs_interval = 0
                         self.handle_detection()
-
-                        self.spk_i = self.spk_i_measurement_weight * peak_val_i + (
-                                                                                      1 - self.spk_i_measurement_weight) * self.spk_i
+                        self.spk_i = self.spk_i_measurement_weight * peak_val_i + (1 - self.spk_i_measurement_weight) * self.spk_i
                     else:
-                        self.npk_i = self.npk_i_measurement_weight * peak_val_i + (
-                                                                                      1 - self.npk_i_measurement_weight) * self.npk_i
+                        self.npk_i = self.npk_i_measurement_weight * peak_val_i + (1 - self.npk_i_measurement_weight) * self.npk_i
 
                     self.threshold_i = self.npk_i + self.threshold_i_diff_weight * (self.spk_i - self.npk_i)
 
@@ -194,6 +194,7 @@ class QRSDetector(object):
         if limit is not None:
             ind = ind[data[ind] > limit]
         return ind
+
 
 if __name__ == "__main__":
     qrs_detector = QRSDetector(port="/dev/cu.usbmodem1411", baud_rate="115200")
