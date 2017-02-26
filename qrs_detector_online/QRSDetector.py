@@ -11,11 +11,11 @@ class QRSDetector(object):
         """Variables initialization and start reading ECG measurements."""
 
         # Parameters.
+        self.signal_freq = 255  # signal frequency
         self.cycling_window = 200  # samples
+        self.integration_window = 15  # signal integration window length in samples
         self.filter_lowcut = 0.0  # band pass filter low cut value
         self.filter_highcut = 15.0  # band pass filter high cut value
-        self.signal_freq = 255  # signal frequency
-        self.integration_window = 15  # signal integration window length in samples
 
         # Detection description.
         self.detected_beat_indicator = 0
@@ -250,7 +250,6 @@ class QRSDetector(object):
         if limit is not None:
             ind = ind[data[ind] > limit]
         return ind
-
 
 if __name__ == "__main__":
     qrs_detector = QRSDetector(port="/dev/cu.usbmodem1411", baud_rate="115200")
