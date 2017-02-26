@@ -16,9 +16,14 @@ class QRSDetector(object):
         self.integration_window = 15  # signal integration window length in samples
         self.filter_lowcut = 0.0  # band pass filter low cut value
         self.filter_highcut = 15.0  # band pass filter high cut value
+        self.filter_order = 1
+        self.findpeaks_limit = 0.40
+        # TODO: This value should be dynamic when dynamic freq will be implemented.
+        self.findpeaks_spacing = 50
 
         # Detection description.
         self.detected_beat_indicator = 0
+        # TODO: Could this be time bassed instead of sample number based? If sample based - need to be dynamic when dynamic freq will be implemented.
         self.qrs_interval = 0  # samples
 
         # Received the most recent measurement.
@@ -119,11 +124,10 @@ class QRSDetector(object):
     def extract_peaks(self):
         """Proceses received data."""
 
-        # TODO: All parameters to go to init.
         # Signal filtering - band pass 0-15 Hz.
         filtered_signal = self.bandpass_filter(self.most_recent_measurements, lowcut=self.filter_lowcut,
                                                     highcut=self.filter_highcut, signal_freq=self.signal_freq,
-                                                    filter_order=1)
+                                                    filter_order=self.filter_order)
 
         # Derivative - provides QRS slope info.
         differentiated_signal = np.ediff1d(filtered_signal)
@@ -135,8 +139,7 @@ class QRSDetector(object):
         integrated_signal = np.convolve(squared_signal, np.ones(self.integration_window))
 
         # Fiducial mark - peak detection - integrated signal.
-        # TODO: All parameters to go to init.
-        detected_peaks_indices = self.findpeaks(integrated_signal, limit=0.40, spacing=50)
+        detected_peaks_indices = self.findpeaks(integrated_signal, limit=self.findpeaks_limit, spacing=self.findpeaks_spacing)
 
         # TODO: Check whether detected_peaks_indices == fiducial_mark_idx_i - if yes use fiducial_mark_idx_i to create np.array()
         # TODO: Refactor fiducial_mark_idx_i to detected_peaks_indices and detected_peaks_values.
@@ -206,9 +209,6 @@ class QRSDetector(object):
 
     def handle_detection(self):
         print "Pulse"
-        # with open("flag.txt", "w") as fout:
-        #     fout.write("%s %s %s %s" % (str(self.timestamp), str(self.measurement), str(self.detected_beat_indicator),
-        #                                 str(self.timestamp - self.peak_timestamp)))
 
     # Tools methods.
     def bandpass_filter(self, data, lowcut, highcut, signal_freq, filter_order):
