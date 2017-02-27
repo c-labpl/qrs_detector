@@ -3,6 +3,7 @@ import numpy as np
 from scipy.signal import butter, lfilter
 from collections import deque
 
+
 class QRSDetector(object):
     """QRS complex detector."""
 
@@ -10,7 +11,7 @@ class QRSDetector(object):
         """Variables initialization and start reading ECG measurements."""
 
         # Configuration parameters.
-        self.number_of_most_recent_samples = 200  # samples
+        self.number_of_samples_stored = 200  # samples
         self.signal_freq = 255  # signal frequency
         self.filter_lowcut = 0.0  # band pass filter low cut value
         self.filter_highcut = 15.0  # band pass filter high cut value
@@ -25,17 +26,17 @@ class QRSDetector(object):
         # TODO: This value should be dynamic when dynamic freq will be implemented.
         self.buffer_detection_window = 40  # samples
         # TODO: Rename these to more meaningful names.
-        self.spk_i_measurement_weight = 0.125 # detection and thresholding params
-        self.npk_i_measurement_weight = 0.125 # detection and thresholding params
-        self.threshold_i_diff_weight = 0.25 # detection and thresholding params
+        self.signal_peak_measurement_weight = 0.125 # detection and thresholding params
+        self.noise_peak_measurement_weight = 0.125 # detection and thresholding params
+        self.threshold_diff_weight = 0.25 # detection and thresholding params
 
         # Measured and calculated values.
-        self.most_recent_measurements = deque([], self.number_of_most_recent_samples)  # most recent measurements array
+        self.most_recent_measurements = deque([], self.number_of_samples_stored)  # most recent measurements array
         # TODO: Could this be time based instead of sample number based? If sample based - need to be dynamic when dynamic freq will be implemented.
         self.qrs_interval = 0  # samples
-        self.spk_i = 0.0
-        self.npk_i = 0.0
-        self.threshold_i = 0.0
+        self.signal_peak_filtered_value = 0.0
+        self.noise_peak_filtered_value = 0.0
+        self.threshold_value = 0.0
 
         # Run the detector.
         self.connect_to_ecg(port=port, baud_rate=baud_rate)
@@ -89,19 +90,19 @@ class QRSDetector(object):
 
         # Signal filtering - band pass 0-15 Hz.
         filtered_signal = self.bandpass_filter(self.most_recent_measurements, lowcut=self.filter_lowcut,
-                                                    highcut=self.filter_highcut, signal_freq=self.signal_freq,
-                                                    filter_order=self.filter_order)
+                                               highcut=self.filter_highcut, signal_freq=self.signal_freq,
+                                               filter_order=self.filter_order)
 
         # Derivative - provides QRS slope info.
         differentiated_signal = np.ediff1d(filtered_signal)
 
         # Squaring.
-        squared_signal = differentiated_signal ** 2
+        squared_signal = differentiated_signal**2
 
         # Moving-window integration.
         integrated_signal = np.convolve(squared_signal, np.ones(self.integration_window))
 
-        # Fiducial mark - peak detection - integrated signal.
+        # Fiducial mark - peak detection on integrated signal.
         detected_peaks_indices = self.findpeaks(integrated_signal, limit=self.findpeaks_limit, spacing=self.findpeaks_spacing)
 
         # TODO: Check whether detected_peaks_indices == fiducial_mark_idx_i - if yes use fiducial_mark_idx_i to create np.array()
@@ -125,7 +126,7 @@ class QRSDetector(object):
         # TODO: Verify whether it does not break things being here.
         self.qrs_interval += 1
 
-        # Add comment: refactory period - no detection if we are to close physiologically to last detected pulse.
+        # Add comment: refractory period - no detection if we are to close physiologically to last detected pulse.
         if self.qrs_interval > self.refractory_period:
 
             # Check whether any peak was detected in analysed samples window.
@@ -138,17 +139,17 @@ class QRSDetector(object):
                 # Check whether detected peak occured within defined window from end of samples buffer - making sure that the same peak will not be detected twice.
                 # TODO: This is strange. Something can be done here to make it more obvious.
                 # TODO: Also - why do we need this? Analyse this.
-                if peak_idx_i > self.number_of_most_recent_samples - self.buffer_detection_window:
+                if peak_idx_i > self.number_of_samples_stored - self.buffer_detection_window:
 
                     # Peak must be classified as a noise peak or a signal peak. To be a signal peak it must exceed threshold_i_1.
-                    if peak_val_i > self.threshold_i:
+                    if peak_val_i > self.threshold_value:
                         self.qrs_interval = 0
                         self.handle_detection()
-                        self.spk_i = self.spk_i_measurement_weight * peak_val_i + (1 - self.spk_i_measurement_weight) * self.spk_i
+                        self.signal_peak_filtered_value = self.signal_peak_measurement_weight * peak_val_i + (1 - self.signal_peak_measurement_weight) * self.signal_peak_filtered_value
                     else:
-                        self.npk_i = self.npk_i_measurement_weight * peak_val_i + (1 - self.npk_i_measurement_weight) * self.npk_i
+                        self.noise_peak_filtered_value = self.noise_peak_measurement_weight * peak_val_i + (1 - self.noise_peak_measurement_weight) * self.noise_peak_filtered_value
 
-                    self.threshold_i = self.npk_i + self.threshold_i_diff_weight * (self.spk_i - self.npk_i)
+                    self.threshold_value = self.noise_peak_filtered_value + self.threshold_diff_weight * (self.signal_peak_filtered_value - self.noise_peak_filtered_value)
 
 
     def handle_detection(self):
