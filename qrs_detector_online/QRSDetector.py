@@ -134,20 +134,20 @@ class QRSDetector(object):
 
                 # Take the last one detected in analysed samples window as the most recent.
                 # TODO: Refactor these names.
-                peak_idx_i, peak_val_i = detected_peaks_indices[-1], detected_peaks_values[-1]
+                last_peak_idx, last_peak_value = detected_peaks_indices[-1], detected_peaks_values[-1]
 
                 # Check whether detected peak occured within defined window from end of samples buffer - making sure that the same peak will not be detected twice.
                 # TODO: This is strange. Something can be done here to make it more obvious.
                 # TODO: Also - why do we need this? Analyse this.
-                if peak_idx_i > self.number_of_samples_stored - self.buffer_detection_window:
+                if last_peak_idx > self.number_of_samples_stored - self.buffer_detection_window:
 
                     # Peak must be classified as a noise peak or a signal peak. To be a signal peak it must exceed threshold_i_1.
-                    if peak_val_i > self.threshold_value:
+                    if last_peak_value > self.threshold_value:
                         self.qrs_interval = 0
                         self.handle_detection()
-                        self.signal_peak_filtered_value = self.signal_peak_measurement_weight * peak_val_i + (1 - self.signal_peak_measurement_weight) * self.signal_peak_filtered_value
+                        self.signal_peak_filtered_value = self.signal_peak_measurement_weight * last_peak_value + (1 - self.signal_peak_measurement_weight) * self.signal_peak_filtered_value
                     else:
-                        self.noise_peak_filtered_value = self.noise_peak_measurement_weight * peak_val_i + (1 - self.noise_peak_measurement_weight) * self.noise_peak_filtered_value
+                        self.noise_peak_filtered_value = self.noise_peak_measurement_weight * last_peak_value + (1 - self.noise_peak_measurement_weight) * self.noise_peak_filtered_value
 
                     self.threshold_value = self.noise_peak_filtered_value + self.threshold_diff_weight * (self.signal_peak_filtered_value - self.noise_peak_filtered_value)
 
