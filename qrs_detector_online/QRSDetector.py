@@ -8,11 +8,11 @@ import random
 class QRSDetector(object):
     """QRS complex detector."""
 
-    def __init__(self, port, baud_rate):
+    def __init__(self, port, baud_rate, signal_freq):
         """Variables initialization and start reading ECG measurements."""
 
         # Configuration parameters.
-        self.signal_freq_samples_per_sec = 255  # signal frequency
+        self.signal_freq_samples_per_sec = signal_freq  # signal frequency
         # TODO: This value should be dynamic when dynamic freq will be implemented.
         self.number_of_samples_stored = 200  # samples
         self.filter_lowcut = 0.0  # band pass filter low cut value
@@ -74,7 +74,6 @@ class QRSDetector(object):
             return
 
         self.most_recent_measurements.append(measurement)
-
         self.extract_peaks(self.most_recent_measurements)
 
     def extract_peaks(self, most_recent_measurements):
@@ -128,7 +127,7 @@ class QRSDetector(object):
 
 
     def handle_detection(self):
-        print(random.random(), "Pulse")
+        print("Pulse")
 
     # Tools methods.
     def bandpass_filter(self, data, lowcut, highcut, signal_freq, filter_order):
@@ -173,4 +172,4 @@ class QRSDetector(object):
 
 
 if __name__ == "__main__":
-    qrs_detector = QRSDetector(port="/dev/cu.usbmodem14311", baud_rate="115200")
+    qrs_detector = QRSDetector(port="/dev/cu.usbmodem14311", baud_rate="115200", signal_freq=255)
