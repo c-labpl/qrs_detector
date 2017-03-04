@@ -4,6 +4,7 @@ from scipy.signal import butter, lfilter
 from collections import deque
 import random
 
+
 class QRSDetector(object):
     """QRS complex detector."""
 
@@ -11,28 +12,27 @@ class QRSDetector(object):
         """Variables initialization and start reading ECG measurements."""
 
         # Configuration parameters.
-        self.signal_freq = 255  # signal frequency
+        self.signal_freq_samples_per_sec = 255  # signal frequency
         # TODO: This value should be dynamic when dynamic freq will be implemented.
         self.number_of_samples_stored = 200  # samples
         self.filter_lowcut = 0.0  # band pass filter low cut value
         self.filter_highcut = 15.0  # band pass filter high cut value
         self.filter_order = 1
-        # TODO: This value should be dynamic when dynamic freq will be implemented.
+        # TODO: This value should be dynamic when dynamic freq will be implemented or time based.
         self.integration_window = 15  # signal integration window length in samples
         self.findpeaks_limit = 0.40
         # TODO: This value should be dynamic when dynamic freq will be implemented.
         self.findpeaks_spacing = 50 # samples
-        # TODO: This value should be dynamic when dynamic freq will be implemented.
+        # TODO: This value should be dynamic when dynamic freq will be implemented or time based.
         self.refractory_period = 120  # samples
         # TODO: This value should be dynamic when dynamic freq will be implemented.
         self.detection_window = 40  # samples
-        # TODO: Rename these to more meaningful names.
-        self.signal_peak_measurement_weight = 0.125 # detection and thresholding params
-        self.noise_peak_measurement_weight = 0.125 # detection and thresholding params
+        self.signal_peak_filtering_factor = 0.125 # detection and thresholding params
+        self.noise_peak_filtering_factor = 0.125 # detection and thresholding params
         self.signal_noise_diff_weight = 0.25 # detection and thresholding params
 
         # Measured and calculated values.
-        self.most_recent_measurements = deque([], self.number_of_samples_stored)  # most recent measurements array
+        self.most_recent_measurements = deque([0], self.number_of_samples_stored)  # most recent measurements array
         # TODO: Could this be time based instead of sample number based? If sample based - need to be dynamic when dynamic freq will be implemented.
         self.time_since_last_detected_qrs = 0  # samples
         self.signal_peak_value = 0.0
@@ -55,15 +55,13 @@ class QRSDetector(object):
             raw_measurement = serial_port.readline()
             self.process_measurement(raw_measurement=raw_measurement)
 
-
     # Data processing methods.
     def process_measurement(self, raw_measurement):
         """Parsing raw data line."""
 
         raw_measurement_split = raw_measurement.decode().rstrip().split(';')
 
-        # TODO: Change it to == 2 - need to test it with real data.
-        if len(raw_measurement_split) < 2:
+        if len(raw_measurement_split) != 2:
             return
         try:
             timestamp = float(raw_measurement_split[0])
@@ -77,20 +75,14 @@ class QRSDetector(object):
 
         self.most_recent_measurements.append(measurement)
 
-        # TODO: Why?
-        if len(self.most_recent_measurements) == 1:
-            return
+        self.extract_peaks(self.most_recent_measurements)
 
-        # TODO: Maybe pass here most_recent_measurements as argument instead of calling self in method? More consistent with others.
-        self.extract_peaks()
-
-
-    def extract_peaks(self):
+    def extract_peaks(self, most_recent_measurements):
         """Proceses received data."""
 
         # Signal filtering - band pass 0-15 Hz.
-        filtered_signal = self.bandpass_filter(self.most_recent_measurements, lowcut=self.filter_lowcut,
-                                               highcut=self.filter_highcut, signal_freq=self.signal_freq,
+        filtered_signal = self.bandpass_filter(most_recent_measurements, lowcut=self.filter_lowcut,
+                                               highcut=self.filter_highcut, signal_freq=self.signal_freq_samples_per_sec,
                                                filter_order=self.filter_order)
 
         # Derivative - provides QRS slope info.
@@ -104,7 +96,6 @@ class QRSDetector(object):
 
         # Fiducial mark - peak detection on integrated signal.
         detected_peaks_indices = self.findpeaks(integrated_signal, limit=self.findpeaks_limit, spacing=self.findpeaks_spacing)
-        # To prevent from selecting such a old index peak still kept in samples buffer, we choose only most recently indexed peaks from end of the buffer.
         detected_peaks_indices = detected_peaks_indices[detected_peaks_indices > self.number_of_samples_stored - self.detection_window]
         detected_peaks_values = integrated_signal[detected_peaks_indices]
 
@@ -129,9 +120,9 @@ class QRSDetector(object):
                 if most_recent_peak_value > self.threshold_value:
                     self.handle_detection()
                     self.time_since_last_detected_qrs = 0
-                    self.signal_peak_value = self.signal_peak_measurement_weight * most_recent_peak_value + (1 - self.signal_peak_measurement_weight) * self.signal_peak_value
+                    self.signal_peak_value = self.signal_peak_filtering_factor * most_recent_peak_value + (1 - self.signal_peak_filtering_factor) * self.signal_peak_value
                 else:
-                    self.noise_peak_value = self.noise_peak_measurement_weight * most_recent_peak_value + (1 - self.noise_peak_measurement_weight) * self.noise_peak_value
+                    self.noise_peak_value = self.noise_peak_filtering_factor * most_recent_peak_value + (1 - self.noise_peak_filtering_factor) * self.noise_peak_value
 
                 self.threshold_value = self.noise_peak_value + self.signal_noise_diff_weight * (self.signal_peak_value - self.noise_peak_value)
 
