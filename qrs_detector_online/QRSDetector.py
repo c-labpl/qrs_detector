@@ -2,7 +2,7 @@ import serial
 import numpy as np
 from scipy.signal import butter, lfilter
 from collections import deque
-
+import random
 
 class QRSDetector(object):
     """QRS complex detector."""
@@ -11,8 +11,9 @@ class QRSDetector(object):
         """Variables initialization and start reading ECG measurements."""
 
         # Configuration parameters.
-        self.number_of_samples_stored = 200  # samples
         self.signal_freq = 255  # signal frequency
+        # TODO: This value should be dynamic when dynamic freq will be implemented.
+        self.number_of_samples_stored = 200  # samples
         self.filter_lowcut = 0.0  # band pass filter low cut value
         self.filter_highcut = 15.0  # band pass filter high cut value
         self.filter_order = 1
@@ -24,18 +25,18 @@ class QRSDetector(object):
         # TODO: This value should be dynamic when dynamic freq will be implemented.
         self.refractory_period = 120  # samples
         # TODO: This value should be dynamic when dynamic freq will be implemented.
-        self.buffer_detection_window = 40  # samples
+        self.detection_window = 40  # samples
         # TODO: Rename these to more meaningful names.
         self.signal_peak_measurement_weight = 0.125 # detection and thresholding params
         self.noise_peak_measurement_weight = 0.125 # detection and thresholding params
-        self.threshold_diff_weight = 0.25 # detection and thresholding params
+        self.signal_noise_diff_weight = 0.25 # detection and thresholding params
 
         # Measured and calculated values.
         self.most_recent_measurements = deque([], self.number_of_samples_stored)  # most recent measurements array
         # TODO: Could this be time based instead of sample number based? If sample based - need to be dynamic when dynamic freq will be implemented.
-        self.qrs_interval = 0  # samples
-        self.signal_peak_filtered_value = 0.0
-        self.noise_peak_filtered_value = 0.0
+        self.time_since_last_detected_qrs = 0  # samples
+        self.signal_peak_value = 0.0
+        self.noise_peak_value = 0.0
         self.threshold_value = 0.0
 
         # Run the detector.
@@ -59,8 +60,7 @@ class QRSDetector(object):
     def process_measurement(self, raw_measurement):
         """Parsing raw data line."""
 
-        # TODO: Add encoding for Python 3.
-        raw_measurement_split = raw_measurement.rstrip().split(';')
+        raw_measurement_split = raw_measurement.decode().rstrip().split(';')
 
         # TODO: Change it to == 2 - need to test it with real data.
         if len(raw_measurement_split) < 2:
@@ -104,56 +104,40 @@ class QRSDetector(object):
 
         # Fiducial mark - peak detection on integrated signal.
         detected_peaks_indices = self.findpeaks(integrated_signal, limit=self.findpeaks_limit, spacing=self.findpeaks_spacing)
+        # To prevent from selecting such a old index peak still kept in samples buffer, we choose only most recently indexed peaks from end of the buffer.
+        detected_peaks_indices = detected_peaks_indices[detected_peaks_indices > self.number_of_samples_stored - self.detection_window]
+        detected_peaks_values = integrated_signal[detected_peaks_indices]
 
-        # TODO: Check whether detected_peaks_indices == fiducial_mark_idx_i - if yes use fiducial_mark_idx_i to create np.array()
-        # TODO: Refactor fiducial_mark_idx_i to detected_peaks_indices and detected_peaks_values.
-        # TODO: Refactor it to one 2D array with idx and vals in one array.
-        fiducial_mark_idx_i = np.array([])
-        fiducial_mark_val_i = np.array([])
-        for detected_peak_index in detected_peaks_indices:
-            fiducial_mark_idx_i = np.append(fiducial_mark_idx_i, detected_peak_index)
-            fiducial_mark_val_i = np.append(fiducial_mark_val_i, integrated_signal[detected_peak_index])
-
-        self.detect_qrs(detected_peaks_indices=fiducial_mark_idx_i, detected_peaks_values=fiducial_mark_val_i)
+        self.detect_qrs(detected_peaks_indices=detected_peaks_indices, detected_peaks_values=detected_peaks_values)
 
     # Detection methods.
     def detect_qrs(self, detected_peaks_indices, detected_peaks_values):
         """Thresholding detected peaks - integrated - signal."""
-        # Check whether refractory period has passed.
+
+        self.time_since_last_detected_qrs += 1
+
         # After a valid QRS complex detection, there is a 200 ms refractory period before the next one can be detected.
-
-        # TODO: Check whether it can be done differently.
-        # TODO: Verify whether it does not break things being here.
-        self.qrs_interval += 1
-
-        # Add comment: refractory period - no detection if we are to close physiologically to last detected pulse.
-        if self.qrs_interval > self.refractory_period:
+        if self.time_since_last_detected_qrs > self.refractory_period:
 
             # Check whether any peak was detected in analysed samples window.
             if len(detected_peaks_indices) > 0:
 
                 # Take the last one detected in analysed samples window as the most recent.
-                # TODO: Refactor these names.
-                last_peak_idx, last_peak_value = detected_peaks_indices[-1], detected_peaks_values[-1]
+                most_recent_peak_idx, most_recent_peak_value = detected_peaks_indices[-1], detected_peaks_values[-1]
 
-                # Check whether detected peak occured within defined window from end of samples buffer - making sure that the same peak will not be detected twice.
-                # TODO: This is strange. Something can be done here to make it more obvious.
-                # TODO: Also - why do we need this? Analyse this.
-                if last_peak_idx > self.number_of_samples_stored - self.buffer_detection_window:
+                # Peak must be classified as a noise peak or a signal peak. To be a signal peak it must exceed threshold_i_1.
+                if most_recent_peak_value > self.threshold_value:
+                    self.handle_detection()
+                    self.time_since_last_detected_qrs = 0
+                    self.signal_peak_value = self.signal_peak_measurement_weight * most_recent_peak_value + (1 - self.signal_peak_measurement_weight) * self.signal_peak_value
+                else:
+                    self.noise_peak_value = self.noise_peak_measurement_weight * most_recent_peak_value + (1 - self.noise_peak_measurement_weight) * self.noise_peak_value
 
-                    # Peak must be classified as a noise peak or a signal peak. To be a signal peak it must exceed threshold_i_1.
-                    if last_peak_value > self.threshold_value:
-                        self.qrs_interval = 0
-                        self.handle_detection()
-                        self.signal_peak_filtered_value = self.signal_peak_measurement_weight * last_peak_value + (1 - self.signal_peak_measurement_weight) * self.signal_peak_filtered_value
-                    else:
-                        self.noise_peak_filtered_value = self.noise_peak_measurement_weight * last_peak_value + (1 - self.noise_peak_measurement_weight) * self.noise_peak_filtered_value
-
-                    self.threshold_value = self.noise_peak_filtered_value + self.threshold_diff_weight * (self.signal_peak_filtered_value - self.noise_peak_filtered_value)
+                self.threshold_value = self.noise_peak_value + self.signal_noise_diff_weight * (self.signal_peak_value - self.noise_peak_value)
 
 
     def handle_detection(self):
-        print("Pulse")
+        print(random.random(), "Pulse")
 
     # Tools methods.
     def bandpass_filter(self, data, lowcut, highcut, signal_freq, filter_order):
@@ -198,5 +182,4 @@ class QRSDetector(object):
 
 
 if __name__ == "__main__":
-    qrs_detector = QRSDetector(port="/dev/cu.usbmodem1411", baud_rate="115200")
-    qrs_detector.connect_to_ecg()
+    qrs_detector = QRSDetector(port="/dev/cu.usbmodem14311", baud_rate="115200")
