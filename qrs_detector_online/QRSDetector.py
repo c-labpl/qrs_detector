@@ -2,7 +2,6 @@ import serial
 import numpy as np
 from scipy.signal import butter, lfilter
 from collections import deque
-import random
 
 
 class QRSDetector(object):
@@ -13,20 +12,20 @@ class QRSDetector(object):
 
         # Configuration parameters.
         self.signal_freq_samples_per_sec = signal_freq  # signal frequency
-        # TODO: This value should be dynamic when dynamic freq will be implemented.
+        # TODO: Mark this with comment that needs to be changed when adjusting frequency.
         self.number_of_samples_stored = 200  # 200 samples for 250 samples per second
         self.possible_measurement_upper_limit = 10
         self.filter_lowcut = 0.0  # band pass filter low cut value
         self.filter_highcut = 15.0  # band pass filter high cut value
         self.filter_order = 1
-        # TODO: This value should be dynamic when dynamic freq will be implemented or time based.
+        # TODO: Mark this with comment that needs to be changed when adjusting frequency.
         self.integration_window = 15  # signal integration window length in samples
         self.findpeaks_limit = 0.40
-        # TODO: This value should be dynamic when dynamic freq will be implemented.
+        # TODO: Mark this with comment that needs to be changed when adjusting frequency.
         self.findpeaks_spacing = 50 # samples
-        # TODO: This value should be dynamic when dynamic freq will be implemented.
+        # TODO: Mark this with comment that needs to be changed when adjusting frequency.
         self.detection_window = 40  # samples
-        # TODO: This value should be dynamic when dynamic freq will be implemented or time based.
+        # TODO: Mark this with comment that needs to be changed when adjusting frequency.
         self.refractory_period = 120  # samples
         self.signal_peak_filtering_factor = 0.125 # detection and thresholding params
         self.noise_peak_filtering_factor = 0.125 # detection and thresholding params
@@ -34,7 +33,6 @@ class QRSDetector(object):
 
         # Measured and calculated values.
         self.most_recent_measurements = deque([0], self.number_of_samples_stored)  # most recent measurements array
-        # TODO: Could this be time based instead of sample number based? If sample based - need to be dynamic when dynamic freq will be implemented.
         self.time_since_last_detected_qrs = 0  # samples
         self.signal_peak_value = 0.0
         self.noise_peak_value = 0.0
@@ -65,7 +63,6 @@ class QRSDetector(object):
         if len(raw_measurement_split) != 2:
             return
         try:
-            timestamp = float(raw_measurement_split[0])
             measurement = float(raw_measurement_split[1])
         except Exception:
             return
