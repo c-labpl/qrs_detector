@@ -37,7 +37,7 @@ class QRSDetector(object):
 
         # Measured and calculated values.
         self.most_recent_measurements = deque([0], self.number_of_samples_stored)  # most recent measurements array
-        self.time_since_last_detected_qrs = 0  # samples
+        self.samples_since_last_detected_qrs = 0  # samples
         self.signal_peak_value = 0.0
         self.noise_peak_value = 0.0
         self.threshold_value = 0.0
@@ -69,6 +69,7 @@ class QRSDetector(object):
         while True:
             raw_measurement = serial_port.readline()
             self.process_measurement(raw_measurement=raw_measurement)
+
             self.log_data(self.log_path, "{:d},{:.10f},{:d}\n".format(int(self.timestamp), self.measurement, self.detected_qrs))
 
     # Data processing methods.
@@ -121,10 +122,10 @@ class QRSDetector(object):
     def detect_qrs(self, detected_peaks_indices, detected_peaks_values):
         """Thresholding detected peaks - integrated - signal."""
 
-        self.time_since_last_detected_qrs += 1
+        self.samples_since_last_detected_qrs += 1
 
         # After a valid QRS complex detection, there is a 200 ms refractory period before the next one can be detected.
-        if self.time_since_last_detected_qrs > self.refractory_period:
+        if self.samples_since_last_detected_qrs > self.refractory_period:
 
             # Check whether any peak was detected in analysed samples window.
             if len(detected_peaks_indices) > 0:
@@ -136,7 +137,7 @@ class QRSDetector(object):
                 if most_recent_peak_value > self.threshold_value:
                     self.handle_detection()
                     self.detected_qrs = 1
-                    self.time_since_last_detected_qrs = 0
+                    self.samples_since_last_detected_qrs = 0
                     self.signal_peak_value = self.signal_peak_filtering_factor * most_recent_peak_value + (1 - self.signal_peak_filtering_factor) * self.signal_peak_value
                 else:
                     self.noise_peak_value = self.noise_peak_filtering_factor * most_recent_peak_value + (1 - self.noise_peak_filtering_factor) * self.noise_peak_value
