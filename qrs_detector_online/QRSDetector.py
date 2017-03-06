@@ -7,11 +7,12 @@ from collections import deque
 class QRSDetector(object):
     """QRS complex detector."""
 
-    def __init__(self, port, baud_rate, signal_freq):
+    def __init__(self, port, baud_rate):
         """Variables initialization and start reading ECG measurements."""
 
         # Configuration parameters.
-        self.signal_freq_samples_per_sec = signal_freq  # signal frequency
+        # TODO: Mark this with comment that needs to be changed when adjusting frequency.
+        self.signal_freq_samples_per_sec = 250  # samples per second
         # TODO: Mark this with comment that needs to be changed when adjusting frequency.
         self.number_of_samples_stored = 200  # 200 samples for 250 samples per second
         self.possible_measurement_upper_limit = 10
@@ -170,4 +171,4 @@ class QRSDetector(object):
 
 
 if __name__ == "__main__":
-    qrs_detector = QRSDetector(port="/dev/cu.usbmodem14311", baud_rate="115200", signal_freq=255)
+    qrs_detector = QRSDetector(port="/dev/cu.usbmodem14311", baud_rate="115200")
