@@ -14,7 +14,8 @@ class QRSDetector(object):
         # Configuration parameters.
         self.signal_freq_samples_per_sec = signal_freq  # signal frequency
         # TODO: This value should be dynamic when dynamic freq will be implemented.
-        self.number_of_samples_stored = 200  # samples
+        self.number_of_samples_stored = 200  # 200 samples for 250 samples per second
+        self.possible_measurement_upper_limit = 10
         self.filter_lowcut = 0.0  # band pass filter low cut value
         self.filter_highcut = 15.0  # band pass filter high cut value
         self.filter_order = 1
@@ -23,10 +24,10 @@ class QRSDetector(object):
         self.findpeaks_limit = 0.40
         # TODO: This value should be dynamic when dynamic freq will be implemented.
         self.findpeaks_spacing = 50 # samples
-        # TODO: This value should be dynamic when dynamic freq will be implemented or time based.
-        self.refractory_period = 120  # samples
         # TODO: This value should be dynamic when dynamic freq will be implemented.
         self.detection_window = 40  # samples
+        # TODO: This value should be dynamic when dynamic freq will be implemented or time based.
+        self.refractory_period = 120  # samples
         self.signal_peak_filtering_factor = 0.125 # detection and thresholding params
         self.noise_peak_filtering_factor = 0.125 # detection and thresholding params
         self.signal_noise_diff_weight = 0.25 # detection and thresholding params
@@ -70,7 +71,7 @@ class QRSDetector(object):
             return
 
         # Not physiologically possible ECG error measurements rejection.
-        if measurement > 10:
+        if measurement > self.possible_measurement_upper_limit:
             return
 
         self.most_recent_measurements.append(measurement)
