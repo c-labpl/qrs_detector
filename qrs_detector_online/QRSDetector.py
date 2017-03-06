@@ -2,6 +2,9 @@ import serial
 import numpy as np
 from scipy.signal import butter, lfilter
 from collections import deque
+from time import gmtime, strftime
+
+LOG_DIR = "logs/"
 
 
 class QRSDetector(object):
@@ -39,8 +42,20 @@ class QRSDetector(object):
         self.noise_peak_value = 0.0
         self.threshold_value = 0.0
 
+        # Data logging.
+        self.timestamp = 0
+        self.measurement = 0
+        self.detected_qrs = 0
+        self.log_path = "{:s}QRS_detector_log_{:s}.csv".format(LOG_DIR, strftime("%Y_%m_%d_%H_%M_%S", gmtime()))
+        self.log_data(self.log_path, "timestamp,measurement,qrs_detected\n")
+
         # Run the detector.
         self.connect_to_ecg(port=port, baud_rate=baud_rate)
+
+    # Data logging method.
+    def log_data(self, path, data):
+        with open(path, "a") as fin:
+            fin.write(data)
 
     # ECG interfacing methods.
     def connect_to_ecg(self, port, baud_rate):
@@ -54,6 +69,7 @@ class QRSDetector(object):
         while True:
             raw_measurement = serial_port.readline()
             self.process_measurement(raw_measurement=raw_measurement)
+            self.log_data(self.log_path, "{:d},{:.10f},{:d}\n".format(int(self.timestamp), self.measurement, self.detected_qrs))
 
     # Data processing methods.
     def process_measurement(self, raw_measurement):
@@ -64,15 +80,17 @@ class QRSDetector(object):
         if len(raw_measurement_split) != 2:
             return
         try:
-            measurement = float(raw_measurement_split[1])
+            self.detected_qrs = 0
+            self.timestamp = float(raw_measurement_split[0])
+            self.measurement = float(raw_measurement_split[1])
         except Exception:
             return
 
         # Not physiologically possible ECG error measurements rejection.
-        if measurement > self.possible_measurement_upper_limit:
+        if self.measurement > self.possible_measurement_upper_limit:
             return
 
-        self.most_recent_measurements.append(measurement)
+        self.most_recent_measurements.append(self.measurement)
         self.extract_peaks(self.most_recent_measurements)
 
     def extract_peaks(self, most_recent_measurements):
@@ -117,13 +135,13 @@ class QRSDetector(object):
                 # Peak must be classified as a noise peak or a signal peak. To be a signal peak it must exceed threshold_i_1.
                 if most_recent_peak_value > self.threshold_value:
                     self.handle_detection()
+                    self.detected_qrs = 1
                     self.time_since_last_detected_qrs = 0
                     self.signal_peak_value = self.signal_peak_filtering_factor * most_recent_peak_value + (1 - self.signal_peak_filtering_factor) * self.signal_peak_value
                 else:
                     self.noise_peak_value = self.noise_peak_filtering_factor * most_recent_peak_value + (1 - self.noise_peak_filtering_factor) * self.noise_peak_value
 
                 self.threshold_value = self.noise_peak_value + self.signal_noise_diff_weight * (self.signal_peak_value - self.noise_peak_value)
-
 
     def handle_detection(self):
         print("Pulse")
