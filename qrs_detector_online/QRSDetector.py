@@ -1,15 +1,44 @@
 import serial
 import numpy as np
-from scipy.signal import butter, lfilter
 from collections import deque
 from time import gmtime, strftime
+from scipy.signal import butter, lfilter
 
 LOG_DIR = "logs/"
 
-# TODO: Class documentation
+
 class QRSDetector(object):
-    """QRS complex detector."""
-    # TODO: Write something about which device it is dedicated to and with what params.
+    """QRS complex detector.
+
+    This class is real time raw ECG measurements based QRS complex detector. It is direct implementation of algorithm
+    known as Pan-Tomkins QRS Detection Algorithm (Jiapu Pan, Willis J. Tomkins, A Real-Time QRS Detection Algorithm, 1985).
+    You can find the paper here: http://www.robots.ox.ac.uk/~gari/teaching/cdt/A3/readings/ECG/Pan+Tompkins.pdf.
+
+    This real time version of QRS detector was prepared to work with e-Health Sensor Platform V2.0 device.
+    Read more about it and in general QRS signals theory here:
+    (https://www.cooking-hacks.com/documentation/tutorials/ehealth-biometric-sensor-platform-arduino-raspberry-pi-medical#step4_2).
+
+    It needs to be initialized with port name to which ECG device is connected and measurements baud rate.
+
+    Detector can be easily adjusted to work with any other raw ECG devices measurements signal in simple few steps:
+
+    - QRSDetector is by default tuned for signal frequency of 250 samples per second. It can be easily customized
+    by changing 7 configuration attributes values, marked in the code, proportionally to the signal_frequency change.
+    For example if one wants to change signal_frequency from 250 to 125 samples per second then number_of_samples_stored
+    needs to be changed to 100 samples, integration_window to 8 samples, findpeaks_spacing to 25 samples and
+    refractory_period to 60 samples.
+
+    - QRSDetector works by reading raw measurements data from ECG device. Data is received in real time right after ECG
+    makes the measurement and is send to QRSDetector in string "timestamp;measurement" format. If different ECG data
+    format is expected changes needs to be done in process_measurement where received data is parsed. Algorithm will
+    work fine even if only measurements values will be sent (without timestamps).
+
+    - QRSDetector filters out measurements that are not physiologically possible (e.g. extremely large values in
+    signal) and could caused most likely in hardware error. To prevent that we use physiologically impossible
+    measurements rejection by setting possible_measurement_upper_limit value to upper possible measurement value
+    using given ECG hardware. For e-Health ECG it is 10. If QRSDetector was to be used with other hardware this value
+    needs to be adjusted.
+    """
 
     def __init__(self, port, baud_rate):
         """
@@ -18,7 +47,7 @@ class QRSDetector(object):
         :param str baud_rate: baud rate of data received from ECG device
         """
         # Configuration parameters.
-        self.signal_frequency = 250                 # Set ECG device frequency in samples per second.
+        self.signal_frequency = 250                 # Set ECG device frequency in samples per second here.
 
         self.number_of_samples_stored = 200         # Change proportionally when adjusting frequency (in samples).
         self.possible_measurement_upper_limit = 10  # ECG device physiologically possible upper measurement limit.
@@ -42,7 +71,7 @@ class QRSDetector(object):
         self.timestamp = 0
         self.measurement = 0
         self.detected_qrs = 0
-        self.most_recent_measurements = deque([0], self.number_of_samples_stored)  # most recent measurements array
+        self.most_recent_measurements = deque([0], self.number_of_samples_stored)
         self.samples_since_last_detected_qrs = 0
         self.signal_peak_value = 0.0
         self.noise_peak_value = 0.0
