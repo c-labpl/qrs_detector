@@ -7,7 +7,6 @@ from time import gmtime, strftime
 LOG_DIR = "logs/"
 
 # TODO: Class documentation
-# TODO: Methods one by one.
 class QRSDetector(object):
     """QRS complex detector."""
     # TODO: Write something about which device it is dedicated to and with what params.
@@ -19,42 +18,41 @@ class QRSDetector(object):
         :param str baud_rate: baud rate of data received from ECG device
         """
         # Configuration parameters.
-        # TODO: Mark this with comment that needs to be changed when adjusting frequency.
-        self.signal_freq = 250  # samples per second
-        # TODO: Mark this with comment that needs to be changed when adjusting frequency.
-        self.number_of_samples_stored = 200  # 200 samples for 250 samples per second
-        self.possible_measurement_upper_limit = 10
-        self.filter_lowcut = 0.0  # band pass filter low cut value
-        self.filter_highcut = 15.0  # band pass filter high cut value
-        self.filter_order = 1
-        # TODO: Mark this with comment that needs to be changed when adjusting frequency.
-        self.integration_window = 15  # signal integration window length in samples
-        self.findpeaks_limit = 0.30
-        # TODO: Mark this with comment that needs to be changed when adjusting frequency.
-        self.findpeaks_spacing = 50 # samples
-        # TODO: Mark this with comment that needs to be changed when adjusting frequency.
-        self.detection_window = 40  # samples
-        # TODO: Mark this with comment that needs to be changed when adjusting frequency.
-        self.refractory_period = 120  # samples
-        self.signal_peak_filtering_factor = 0.125 # detection and thresholding params
-        self.noise_peak_filtering_factor = 0.125 # detection and thresholding params
-        self.signal_noise_diff_weight = 0.25 # detection and thresholding params
+        self.signal_frequency = 250                 # Set ECG device frequency in samples per second.
 
-        # Measured and calculated values.
+        self.number_of_samples_stored = 200         # Change proportionally when adjusting frequency (in samples).
+        self.possible_measurement_upper_limit = 10  # ECG device physiologically possible upper measurement limit.
+
+        self.filter_lowcut = 0.0
+        self.filter_highcut = 15.0
+        self.filter_order = 1
+
+        self.integration_window = 15                # Change proportionally when adjusting frequency (in samples).
+
+        self.findpeaks_limit = 0.30
+        self.findpeaks_spacing = 50                 # Change proportionally when adjusting frequency (in samples).
+        self.detection_window = 40                  # Change proportionally when adjusting frequency (in samples).
+
+        self.refractory_period = 120                # Change proportionally when adjusting frequency (in samples).
+        self.signal_peak_filtering_factor = 0.125
+        self.noise_peak_filtering_factor = 0.125
+        self.signal_noise_diff_weight = 0.25
+
+        # Measurements and calculated values.
+        self.timestamp = 0
+        self.measurement = 0
+        self.detected_qrs = 0
         self.most_recent_measurements = deque([0], self.number_of_samples_stored)  # most recent measurements array
-        self.samples_since_last_detected_qrs = 0  # samples
+        self.samples_since_last_detected_qrs = 0
         self.signal_peak_value = 0.0
         self.noise_peak_value = 0.0
         self.threshold_value = 0.0
 
         # Data logging.
-        self.timestamp = 0
-        self.measurement = 0
-        self.detected_qrs = 0
         self.log_path = "{:s}QRS_detector_log_{:s}.csv".format(LOG_DIR, strftime("%Y_%m_%d_%H_%M_%S", gmtime()))
         self.log_data(self.log_path, "timestamp,measurement,qrs_detected\n")
 
-        # Run the detector.
+        # Connect to ECG device and start the detector.
         self.connect_to_ecg(port=port, baud_rate=baud_rate)
 
     """Setting connection to ECG device methods."""
@@ -80,14 +78,14 @@ class QRSDetector(object):
 
     """Measured data processing methods."""
 
-    # TODO: Określ typy parametrów - czym jest raw_measurement? 2d array time, data
     def process_measurement(self, raw_measurement):
         """
         Method responsible for parsing and initial processing of ECG measured data sample.
-        :param str raw_measurement: ECG most recently received raw measurement
+        :param str raw_measurement: ECG most recent raw measurement in "timestamp;measurement" format
         """
         raw_measurement_split = raw_measurement.decode().rstrip().split(';')
 
+        # Parsing raw ECG data - modify this part in accordance to your device data format.
         if len(raw_measurement_split) != 2:
             return
         try:
@@ -97,11 +95,13 @@ class QRSDetector(object):
         except Exception:
             return
 
-        # Not physiologically possible ECG error measurements rejection.
+        # Not physiologically possible ECG measurements rejection - filtering out device measurements errors.
         if self.measurement > self.possible_measurement_upper_limit:
             return
 
+        # Appending measurements to deque used for rotating most recent samples for further analysis and detection.
         self.most_recent_measurements.append(self.measurement)
+
         self.extract_peaks(self.most_recent_measurements)
 
     def extract_peaks(self, most_recent_measurements):
@@ -109,15 +109,15 @@ class QRSDetector(object):
         Method responsible for extracting peaks from recently received ECG measurements data through signal processing.
         :param deque most_recent_measurements: most recent ECG measurements array
         """
-        # Signal filtering - band pass 0-15 Hz.
+        # Signal filtering - 0-15 Hz band pass filter.
         filtered_signal = self.bandpass_filter(most_recent_measurements, lowcut=self.filter_lowcut,
-                                               highcut=self.filter_highcut, signal_freq=self.signal_freq,
+                                               highcut=self.filter_highcut, signal_freq=self.signal_frequency,
                                                filter_order=self.filter_order)
 
-        # Derivative - provides QRS slope info.
+        # Derivative - provides QRS slope information.
         differentiated_signal = np.ediff1d(filtered_signal)
 
-        # Squaring.
+        # Squaring - intensifies values received in derivative.
         squared_signal = differentiated_signal**2
 
         # Moving-window integration.
@@ -140,7 +140,7 @@ class QRSDetector(object):
         """
         self.samples_since_last_detected_qrs += 1
 
-        # After a valid QRS complex detection, there is a 200 ms refractory period before the next one can be detected.
+        # After a valid QRS complex detection, there is a 200 ms refractory period before next one can be detected.
         if self.samples_since_last_detected_qrs > self.refractory_period:
 
             # Check whether any peak was detected in analysed samples window.
@@ -149,20 +149,25 @@ class QRSDetector(object):
                 # Take the last one detected in analysed samples window as the most recent.
                 most_recent_peak_idx, most_recent_peak_value = detected_peaks_indices[-1], detected_peaks_values[-1]
 
-                # Peak must be classified as a noise peak or a signal peak. To be a signal peak it must exceed threshold_i_1.
+                # Peak must be classified either as a noise peak or a signal peak.
+                # To be classified as a signal peak (QRS peak) it must exceed dynamically set threshold value.
                 if most_recent_peak_value > self.threshold_value:
                     self.handle_detection()
                     self.detected_qrs = 1
                     self.samples_since_last_detected_qrs = 0
+
+                    # Adjust signal peak value used later for setting QRS-noise threshold.
                     self.signal_peak_value = self.signal_peak_filtering_factor * most_recent_peak_value + (1 - self.signal_peak_filtering_factor) * self.signal_peak_value
                 else:
+                    # Adjust noise peak value used later for setting QRS-noise threshold.
                     self.noise_peak_value = self.noise_peak_filtering_factor * most_recent_peak_value + (1 - self.noise_peak_filtering_factor) * self.noise_peak_value
 
+                # Adjust QRS-noise threshold value based on previously detected QRS or noise peaks value.
                 self.threshold_value = self.noise_peak_value + self.signal_noise_diff_weight * (self.signal_peak_value - self.noise_peak_value)
 
     def handle_detection(self):
         """
-        Method responsible for generating any kind of response for detected QRS complex (heart beat).
+        Method responsible for generating any kind of response for detected QRS complex.
         """
         print("Pulse")
 
