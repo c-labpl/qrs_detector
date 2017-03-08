@@ -6,16 +6,21 @@ from time import gmtime, strftime
 
 LOG_DIR = "logs/"
 
-
+# TODO: Class documentation
+# TODO: Methods one by one.
 class QRSDetector(object):
     """QRS complex detector."""
+    # TODO: Write something about which device it is dedicated to and with what params.
 
     def __init__(self, port, baud_rate):
-        """Variables initialization and start reading ECG measurements."""
-
+        """
+        QRSDetector class initialisation method.
+        :param str port: port to which ECG device is connected
+        :param str baud_rate: baud rate of data received from ECG device
+        """
         # Configuration parameters.
         # TODO: Mark this with comment that needs to be changed when adjusting frequency.
-        self.signal_freq_samples_per_sec = 250  # samples per second
+        self.signal_freq = 250  # samples per second
         # TODO: Mark this with comment that needs to be changed when adjusting frequency.
         self.number_of_samples_stored = 200  # 200 samples for 250 samples per second
         self.possible_measurement_upper_limit = 10
@@ -52,13 +57,14 @@ class QRSDetector(object):
         # Run the detector.
         self.connect_to_ecg(port=port, baud_rate=baud_rate)
 
-    # Data logging method.
-    def log_data(self, path, data):
-        with open(path, "a") as fin:
-            fin.write(data)
+    """Setting connection to ECG device methods."""
 
-    # ECG interfacing methods.
     def connect_to_ecg(self, port, baud_rate):
+        """
+        Method responsible for connecting to ECG device and starting reading ECG measurements.
+        :param str port: port to which ECG device is connected
+        :param str baud_rate: baud rate of data received from ECG device
+        """
         try:
             serial_port = serial.Serial(port, baud_rate)
             print("Connected! Starting reading ECG measurements.")
@@ -72,10 +78,14 @@ class QRSDetector(object):
 
             self.log_data(self.log_path, "{:d},{:.10f},{:d}\n".format(int(self.timestamp), self.measurement, self.detected_qrs))
 
-    # Data processing methods.
-    def process_measurement(self, raw_measurement):
-        """Parsing raw data line."""
+    """Measured data processing methods."""
 
+    # TODO: Określ typy parametrów - czym jest raw_measurement? 2d array time, data
+    def process_measurement(self, raw_measurement):
+        """
+        Method responsible for parsing and initial processing of ECG measured data sample.
+        :param str raw_measurement: ECG most recently received raw measurement
+        """
         raw_measurement_split = raw_measurement.decode().rstrip().split(';')
 
         if len(raw_measurement_split) != 2:
@@ -95,11 +105,13 @@ class QRSDetector(object):
         self.extract_peaks(self.most_recent_measurements)
 
     def extract_peaks(self, most_recent_measurements):
-        """Proceses received data."""
-
+        """
+        Method responsible for extracting peaks from recently received ECG measurements data through signal processing.
+        :param deque most_recent_measurements: most recent ECG measurements array
+        """
         # Signal filtering - band pass 0-15 Hz.
         filtered_signal = self.bandpass_filter(most_recent_measurements, lowcut=self.filter_lowcut,
-                                               highcut=self.filter_highcut, signal_freq=self.signal_freq_samples_per_sec,
+                                               highcut=self.filter_highcut, signal_freq=self.signal_freq,
                                                filter_order=self.filter_order)
 
         # Derivative - provides QRS slope info.
@@ -118,10 +130,14 @@ class QRSDetector(object):
 
         self.detect_qrs(detected_peaks_indices=detected_peaks_indices, detected_peaks_values=detected_peaks_values)
 
-    # Detection methods.
-    def detect_qrs(self, detected_peaks_indices, detected_peaks_values):
-        """Thresholding detected peaks - integrated - signal."""
+    """Detection methods."""
 
+    def detect_qrs(self, detected_peaks_indices, detected_peaks_values):
+        """
+        Method responsible for classifying detected ECG signal peaks either as noise or as QRS complex (heart beat).
+        :param array detected_peaks_indices: detected peaks indices array
+        :param array detected_peaks_values: detected peaks values array
+        """
         self.samples_since_last_detected_qrs += 1
 
         # After a valid QRS complex detection, there is a 200 ms refractory period before the next one can be detected.
@@ -145,10 +161,32 @@ class QRSDetector(object):
                 self.threshold_value = self.noise_peak_value + self.signal_noise_diff_weight * (self.signal_peak_value - self.noise_peak_value)
 
     def handle_detection(self):
+        """
+        Method responsible for generating any kind of response for detected QRS complex (heart beat).
+        """
         print("Pulse")
 
-    # Tools methods.
+    """Tools methods."""
+
+    def log_data(self, path, data):
+        """
+        Method responsible for logging measured ECG and detection results to a log file.
+        :param str path: path to a log file
+        :param str data: data line to log
+        """
+        with open(path, "a") as fin:
+            fin.write(data)
+
     def bandpass_filter(self, data, lowcut, highcut, signal_freq, filter_order):
+        """
+        Method responsible for creating and applying Butterworth digital filter for received ECG signal.
+        :param array data: raw data
+        :param int lowcut: filter lowcut frequency value
+        :param int highcut: filter highcut frequency value
+        :param int signal_freq: signal frequency in samples per second (Hz)
+        :param int filter_order: filter order
+        :return array: filtered data
+        """
         """Constructs signal filter and uses it to given dataset."""
         nyquist_freq = 0.5 * signal_freq
         low = lowcut / nyquist_freq
@@ -157,14 +195,15 @@ class QRSDetector(object):
         y = lfilter(b, a, data)
         return y
 
-    # Janko SLavic peak detection algorithm and implementation.
-    # https://github.com/jankoslavic/py-tools/tree/master/findpeaks
     def findpeaks(self, data, spacing=1, limit=None):
-        """Finds peaks in `data` which are of `spacing` width and >=`limit`.
-        :param data: values
-        :param spacing: minimum spacing to the next peak (should be 1 or more)
-        :param limit: peaks should have value greater or equal
-        :return:
+        """
+        Janko Slavic peak detection algorithm and implementation.
+        https://github.com/jankoslavic/py-tools/tree/master/findpeaks
+        Finds peaks in `data` which are of `spacing` width and >=`limit`.
+        :param array data: data
+        :param int spacing: minimum spacing to the next peak (should be 1 or more)
+        :param int limit: peaks should have value greater or equal
+        :return array: detected peaks indexes array
         """
         len = data.size
         x = np.zeros(len + 2 * spacing)
@@ -187,7 +226,6 @@ class QRSDetector(object):
         if limit is not None:
             ind = ind[data[ind] > limit]
         return ind
-
 
 if __name__ == "__main__":
     qrs_detector = QRSDetector(port="/dev/cu.usbmodem14311", baud_rate="115200")
