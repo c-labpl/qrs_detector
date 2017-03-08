@@ -29,7 +29,7 @@ class QRSDetector(object):
         self.filter_order = 1
         # TODO: Mark this with comment that needs to be changed when adjusting frequency.
         self.integration_window = 15  # signal integration window length in samples
-        self.findpeaks_limit = 0.40
+        self.findpeaks_limit = 0.30
         # TODO: Mark this with comment that needs to be changed when adjusting frequency.
         self.findpeaks_spacing = 50 # samples
         # TODO: Mark this with comment that needs to be changed when adjusting frequency.
