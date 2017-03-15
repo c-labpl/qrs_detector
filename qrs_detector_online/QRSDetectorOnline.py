@@ -7,38 +7,8 @@ from scipy.signal import butter, lfilter
 LOG_DIR = "logs/"
 
 
-class QRSDetector(object):
-    """QRS complex detector.
-
-    This class is real time raw ECG measurements based QRS complex detector. It is direct implementation of algorithm
-    known as Pan-Tomkins QRS Detection Algorithm (Jiapu Pan, Willis J. Tomkins, A Real-Time QRS Detection Algorithm, 1985).
-    You can find the paper here: http://www.robots.ox.ac.uk/~gari/teaching/cdt/A3/readings/ECG/Pan+Tompkins.pdf.
-
-    This real time version of QRS detector was prepared to work with e-Health Sensor Platform V2.0 device.
-    Read more about it and in general QRS signals theory here:
-    (https://www.cooking-hacks.com/documentation/tutorials/ehealth-biometric-sensor-platform-arduino-raspberry-pi-medical#step4_2).
-
-    It needs to be initialized with port name to which ECG device is connected and measurements baud rate.
-
-    Detector can be easily adjusted to work with any other raw ECG devices measurements signal in simple few steps:
-
-    - QRSDetector is by default tuned for signal frequency of 250 samples per second. It can be easily customized
-    by changing 7 configuration attributes values, marked in the code, proportionally to the signal_frequency change.
-    For example if one wants to change signal_frequency from 250 to 125 samples per second then number_of_samples_stored
-    needs to be changed to 100 samples, integration_window to 8 samples, findpeaks_spacing to 25 samples and
-    refractory_period to 60 samples.
-
-    - QRSDetector works by reading raw measurements data from ECG device. Data is received in real time right after ECG
-    makes the measurement and is send to QRSDetector in string "timestamp;measurement" format. If different ECG data
-    format is expected changes needs to be done in process_measurement where received data is parsed. Algorithm will
-    work fine even if only measurements values will be sent (without timestamps).
-
-    - QRSDetector filters out measurements that are not physiologically possible (e.g. extremely large values in
-    signal) and could caused most likely in hardware error. To prevent that we use physiologically impossible
-    measurements rejection by setting possible_measurement_upper_limit value to upper possible measurement value
-    using given ECG hardware. For e-Health ECG it is 10. If QRSDetector was to be used with other hardware this value
-    needs to be adjusted.
-    """
+class QRSDetectorOnline(object):
+    """QRS complex detector."""
 
     def __init__(self, port, baud_rate):
         """
@@ -47,22 +17,22 @@ class QRSDetector(object):
         :param str baud_rate: baud rate of data received from ECG device
         """
         # Configuration parameters.
-        self.signal_frequency = 250                 # Set ECG device frequency in samples per second here.
+        self.signal_frequency = 250  # Set ECG device frequency in samples per second here.
 
-        self.number_of_samples_stored = 200         # Change proportionally when adjusting frequency (in samples).
-        self.possible_measurement_upper_limit = 10  # ECG device physiologically possible upper measurement limit.
+        self.number_of_samples_stored = 200  # Change proportionally when adjusting frequency (in samples).
+        self.possible_measurement_upper_limit = 10  # ECG device physiologically upper measurement limit.
 
         self.filter_lowcut = 0.0
         self.filter_highcut = 15.0
         self.filter_order = 1
 
-        self.integration_window = 15                # Change proportionally when adjusting frequency (in samples).
+        self.integration_window = 15  # Change proportionally when adjusting frequency (in samples).
 
         self.findpeaks_limit = 0.30
-        self.findpeaks_spacing = 50                 # Change proportionally when adjusting frequency (in samples).
-        self.detection_window = 40                  # Change proportionally when adjusting frequency (in samples).
+        self.findpeaks_spacing = 50  # Change proportionally when adjusting frequency (in samples).
+        self.detection_window = 40  # Change proportionally when adjusting frequency (in samples).
 
-        self.refractory_period = 120                # Change proportionally when adjusting frequency (in samples).
+        self.refractory_period = 120  # Change proportionally when adjusting frequency (in samples).
         self.signal_peak_filtering_factor = 0.125
         self.noise_peak_filtering_factor = 0.125
         self.signal_noise_diff_weight = 0.25
@@ -95,7 +65,7 @@ class QRSDetector(object):
         try:
             serial_port = serial.Serial(port, baud_rate)
             print("Connected! Starting reading ECG measurements.")
-        except:
+        except serial.SerialException:
             print("Cannot connect to provided port!")
             return
 
@@ -103,7 +73,9 @@ class QRSDetector(object):
             raw_measurement = serial_port.readline()
             self.process_measurement(raw_measurement=raw_measurement)
 
-            self.log_data(self.log_path, "{:d},{:.10f},{:d}\n".format(int(self.timestamp), self.measurement, self.detected_qrs))
+            self.log_data(self.log_path, "{:d},{:.10f},{:d}\n".format(int(self.timestamp),
+                                                                      self.measurement,
+                                                                      self.detected_qrs))
 
     """Measured data processing methods."""
 
@@ -121,7 +93,7 @@ class QRSDetector(object):
             self.detected_qrs = 0
             self.timestamp = float(raw_measurement_split[0])
             self.measurement = float(raw_measurement_split[1])
-        except Exception:
+        except ValueError:
             return
 
         # Not physiologically possible ECG measurements rejection - filtering out device measurements errors.
@@ -147,24 +119,26 @@ class QRSDetector(object):
         differentiated_signal = np.ediff1d(filtered_signal)
 
         # Squaring - intensifies values received in derivative.
-        squared_signal = differentiated_signal**2
+        squared_signal = differentiated_signal ** 2
 
         # Moving-window integration.
         integrated_signal = np.convolve(squared_signal, np.ones(self.integration_window))
 
         # Fiducial mark - peak detection on integrated signal.
-        detected_peaks_indices = self.findpeaks(integrated_signal, limit=self.findpeaks_limit, spacing=self.findpeaks_spacing)
-        detected_peaks_indices = detected_peaks_indices[detected_peaks_indices > self.number_of_samples_stored - self.detection_window]
+        detected_peaks_indices = self.findpeaks(data=integrated_signal,
+                                                limit=self.findpeaks_limit,
+                                                spacing=self.findpeaks_spacing)
+        detected_peaks_indices = detected_peaks_indices[
+            detected_peaks_indices > self.number_of_samples_stored - self.detection_window]
         detected_peaks_values = integrated_signal[detected_peaks_indices]
 
-        self.detect_qrs(detected_peaks_indices=detected_peaks_indices, detected_peaks_values=detected_peaks_values)
+        self.detect_qrs(detected_peaks_values=detected_peaks_values)
 
     """Detection methods."""
 
-    def detect_qrs(self, detected_peaks_indices, detected_peaks_values):
+    def detect_qrs(self, detected_peaks_values):
         """
         Method responsible for classifying detected ECG signal peaks either as noise or as QRS complex (heart beat).
-        :param array detected_peaks_indices: detected peaks indices array
         :param array detected_peaks_values: detected peaks values array
         """
         self.samples_since_last_detected_qrs += 1
@@ -173,10 +147,10 @@ class QRSDetector(object):
         if self.samples_since_last_detected_qrs > self.refractory_period:
 
             # Check whether any peak was detected in analysed samples window.
-            if len(detected_peaks_indices) > 0:
+            if len(detected_peaks_values) > 0:
 
                 # Take the last one detected in analysed samples window as the most recent.
-                most_recent_peak_idx, most_recent_peak_value = detected_peaks_indices[-1], detected_peaks_values[-1]
+                most_recent_peak_value = detected_peaks_values[-1]
 
                 # Peak must be classified either as a noise peak or a signal peak.
                 # To be classified as a signal peak (QRS peak) it must exceed dynamically set threshold value.
@@ -186,13 +160,16 @@ class QRSDetector(object):
                     self.samples_since_last_detected_qrs = 0
 
                     # Adjust signal peak value used later for setting QRS-noise threshold.
-                    self.signal_peak_value = self.signal_peak_filtering_factor * most_recent_peak_value + (1 - self.signal_peak_filtering_factor) * self.signal_peak_value
+                    self.signal_peak_value = self.signal_peak_filtering_factor * most_recent_peak_value + \
+                                             (1 - self.signal_peak_filtering_factor) * self.signal_peak_value
                 else:
                     # Adjust noise peak value used later for setting QRS-noise threshold.
-                    self.noise_peak_value = self.noise_peak_filtering_factor * most_recent_peak_value + (1 - self.noise_peak_filtering_factor) * self.noise_peak_value
+                    self.noise_peak_value = self.noise_peak_filtering_factor * most_recent_peak_value + \
+                                            (1 - self.noise_peak_filtering_factor) * self.noise_peak_value
 
                 # Adjust QRS-noise threshold value based on previously detected QRS or noise peaks value.
-                self.threshold_value = self.noise_peak_value + self.signal_noise_diff_weight * (self.signal_peak_value - self.noise_peak_value)
+                self.threshold_value = self.noise_peak_value + \
+                                       self.signal_noise_diff_weight * (self.signal_peak_value - self.noise_peak_value)
 
     def handle_detection(self):
         """
@@ -214,18 +191,18 @@ class QRSDetector(object):
     def bandpass_filter(self, data, lowcut, highcut, signal_freq, filter_order):
         """
         Method responsible for creating and applying Butterworth digital filter for received ECG signal.
-        :param array data: raw data
-        :param int lowcut: filter lowcut frequency value
-        :param int highcut: filter highcut frequency value
+        :param deque data: raw data
+        :param float lowcut: filter lowcut frequency value
+        :param float highcut: filter highcut frequency value
         :param int signal_freq: signal frequency in samples per second (Hz)
         :param int filter_order: filter order
         :return array: filtered data
         """
-        """Constructs signal filter and uses it to given dataset."""
+        """Constructs signal filter and uses it to given data set."""
         nyquist_freq = 0.5 * signal_freq
         low = lowcut / nyquist_freq
         high = highcut / nyquist_freq
-        b, a = butter(filter_order, [low, high], btype="band")
+        b, a, c = butter(filter_order, [low, high], btype="band")
         y = lfilter(b, a, data)
         return y
 
@@ -234,9 +211,9 @@ class QRSDetector(object):
         Janko Slavic peak detection algorithm and implementation.
         https://github.com/jankoslavic/py-tools/tree/master/findpeaks
         Finds peaks in `data` which are of `spacing` width and >=`limit`.
-        :param array data: data
-        :param int spacing: minimum spacing to the next peak (should be 1 or more)
-        :param int limit: peaks should have value greater or equal
+        :param ndarray data: data
+        :param float spacing: minimum spacing to the next peak (should be 1 or more)
+        :param float limit: peaks should have value greater or equal
         :return array: detected peaks indexes array
         """
         len = data.size
@@ -261,5 +238,6 @@ class QRSDetector(object):
             ind = ind[data[ind] > limit]
         return ind
 
+
 if __name__ == "__main__":
-    qrs_detector = QRSDetector(port="/dev/cu.usbmodem14311", baud_rate="115200")
+    qrs_detector = QRSDetectorOnline(port="/dev/cu.usbmodem14311", baud_rate="115200")
