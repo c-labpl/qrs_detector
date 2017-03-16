@@ -8,7 +8,31 @@ LOG_DIR = "logs/"
 
 
 class QRSDetectorOnline(object):
-    """QRS complex detector."""
+    """
+    Online QRS complex detector.
+
+    MIT License
+
+    Copyright (c) 2017 Marta Łukowska, Michał Sznajder
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+    """
 
     def __init__(self, port, baud_rate):
         """
@@ -28,7 +52,7 @@ class QRSDetectorOnline(object):
 
         self.integration_window = 15  # Change proportionally when adjusting frequency (in samples).
 
-        self.findpeaks_limit = 0.30
+        self.findpeaks_limit = 0.35
         self.findpeaks_spacing = 50  # Change proportionally when adjusting frequency (in samples).
         self.detection_window = 40  # Change proportionally when adjusting frequency (in samples).
 
@@ -77,7 +101,7 @@ class QRSDetectorOnline(object):
                                                                       self.measurement,
                                                                       self.detected_qrs))
 
-    """Measured data processing methods."""
+    """ECG measurements data processing methods."""
 
     def process_measurement(self, raw_measurement):
         """
@@ -103,9 +127,9 @@ class QRSDetectorOnline(object):
         # Appending measurements to deque used for rotating most recent samples for further analysis and detection.
         self.most_recent_measurements.append(self.measurement)
 
-        self.extract_peaks(self.most_recent_measurements)
+        self.detect_peaks(self.most_recent_measurements)
 
-    def extract_peaks(self, most_recent_measurements):
+    def detect_peaks(self, most_recent_measurements):
         """
         Method responsible for extracting peaks from recently received ECG measurements data through signal processing.
         :param deque most_recent_measurements: most recent ECG measurements array
@@ -134,7 +158,7 @@ class QRSDetectorOnline(object):
 
         self.detect_qrs(detected_peaks_values=detected_peaks_values)
 
-    """Detection methods."""
+    """QRS detection methods."""
 
     def detect_qrs(self, detected_peaks_values):
         """
@@ -202,7 +226,7 @@ class QRSDetectorOnline(object):
         nyquist_freq = 0.5 * signal_freq
         low = lowcut / nyquist_freq
         high = highcut / nyquist_freq
-        b, a, c = butter(filter_order, [low, high], btype="band")
+        b, a = butter(filter_order, [low, high], btype="band")
         y = lfilter(b, a, data)
         return y
 
