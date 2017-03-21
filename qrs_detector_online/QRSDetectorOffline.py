@@ -43,7 +43,6 @@ class QRSDetectorOffline(object):
 
         self.findpeaks_limit = 0.35
         self.findpeaks_spacing = 50  # Change proportionally when adjusting frequency (in samples).
-        self.detection_window = 40  # Change proportionally when adjusting frequency (in samples).
 
         self.refractory_period = 120  # Change proportionally when adjusting frequency (in samples).
         self.signal_peak_filtering_factor = 0.125
@@ -51,7 +50,7 @@ class QRSDetectorOffline(object):
         self.signal_noise_diff_weight = 0.25
 
         # Loaded ECG data.
-        self.ecg_data = None
+        self.ecg_data_raw = None
 
         # Measured and calculated values.
         self.filtered_signal = None
@@ -61,31 +60,36 @@ class QRSDetectorOffline(object):
         self.detected_peaks_indices = None
         self.detected_peaks_values = None
 
-        self.qrs_peaks_indices = np.array([])
-        self.noise_peaks_indices = np.array([])
-
         self.signal_peak_value = 0.0
         self.noise_peak_value = 0.0
         self.threshold_value = 0.0
 
+        # Detection results.
+        self.qrs_peaks_indices = np.array([], dtype=int)
+        self.noise_peaks_indices = np.array([], dtype=int)
+
+        # Final ECG data and QRS detection results array - samples with detected QRS are marked with 1 value.
+        self.ecg_data_detected = None
+
         # Load data and run the detection flow.
         self.load_ecg_data(ecg_data_path)
-        self.detect_peaks(self.ecg_data)
+        self.detect_peaks(self.ecg_data_raw)
         self.detect_qrs(detected_peaks_indices=self.detected_peaks_indices,
                         detected_peaks_values=self.detected_peaks_values)
 
         if verbose:
+            # TODO: Move it to function - print report.
             print("qrs peaks indices")
             print(self.qrs_peaks_indices)
             print("noise peaks indices")
             print(self.noise_peaks_indices)
-
-        # TODO: Create as a result field where user can read the detected data array as in logged format - after detection.
+            print("ecg data detected")
+            print(self.ecg_data_detected)
 
     """Loading ECG measurements data methods."""
 
     def load_ecg_data(self, ecg_data_path):
-        self.ecg_data = np.loadtxt(ecg_data_path, skiprows=1, delimiter=',')
+        self.ecg_data_raw = np.loadtxt(ecg_data_path, skiprows=1, delimiter=',')
 
     """ECG measurements data processing methods."""
 
@@ -154,6 +158,11 @@ class QRSDetectorOffline(object):
                 self.threshold_value = self.noise_peak_value + \
                                        self.signal_noise_diff_weight * (self.signal_peak_value - self.noise_peak_value)
 
+        # Create array containing both input ECG measurements data and detected QRS marked with 1 value.
+        measurement_qrs_detection_flag = np.zeros([len(self.ecg_data_raw[:, 1]), 1])
+        measurement_qrs_detection_flag[self.qrs_peaks_indices] = 1
+        self.ecg_data_detected = np.append(self.ecg_data_raw, measurement_qrs_detection_flag, 1)
+
     """Tools methods."""
 
     def bandpass_filter(self, data, lowcut, highcut, signal_freq, filter_order):
@@ -208,5 +217,5 @@ class QRSDetectorOffline(object):
 
 
 if __name__ == "__main__":
-    qrs_detector = QRSDetectorOffline(ecg_data_path="ecg_data/QRS_detector_log_2017_03_06_11_54_02.csv",
+    qrs_detector = QRSDetectorOffline(ecg_data_path="ecg_data/ecg_data_1.csv",
                                       verbose=True)
