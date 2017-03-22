@@ -88,7 +88,7 @@ class QRSDetectorOffline(object):
         if log_data:
             self.log_path = "{:s}QRS_offline_detector_log_{:s}.csv".format(LOG_DIR,
                                                                            strftime("%Y_%m_%d_%H_%M_%S", gmtime()))
-            self.log_refactor_data()
+            self.log_detection_data()
 
     """Loading ECG measurements data methods."""
 
@@ -175,7 +175,7 @@ class QRSDetectorOffline(object):
         print("noise peaks indices")
         print(self.noise_peaks_indices)
 
-    def log_refactor_data(self):
+    def log_detection_data(self):
         """
         Method responsible for logging measured ECG and detection results to a log file.
         :param str path: path to a log file
