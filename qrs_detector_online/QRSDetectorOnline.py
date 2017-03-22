@@ -4,7 +4,7 @@ from collections import deque
 from time import gmtime, strftime
 from scipy.signal import butter, lfilter
 
-LOG_DIR = "logs/"
+LOG_DIR = "logs_online/"
 
 
 class QRSDetectorOnline(object):
@@ -72,8 +72,7 @@ class QRSDetectorOnline(object):
         self.threshold_value = 0.0
 
         # Data logging.
-        self.log_path = "{:s}QRS_detector_log_{:s}.csv".format(LOG_DIR, strftime("%Y_%m_%d_%H_%M_%S", gmtime()))
-        self.log_data(self.log_path, "timestamp,measurement,qrs_detected\n")
+        self.log_path = "{:s}QRS_online_detector_log_{:s}.csv".format(LOG_DIR, strftime("%Y_%m_%d_%H_%M_%S", gmtime()))
 
         # Connect to ECG device and start the detector.
         self.connect_to_ecg(port=port, baud_rate=baud_rate)
@@ -88,6 +87,7 @@ class QRSDetectorOnline(object):
         """
         try:
             serial_port = serial.Serial(port, baud_rate)
+            self.log_data(self.log_path, "timestamp,ecg_measurement,qrs_detected\n")
             print("Connected! Starting reading ECG measurements.")
         except serial.SerialException:
             print("Cannot connect to provided port!")
@@ -180,8 +180,10 @@ class QRSDetectorOnline(object):
                 # To be classified as a signal peak (QRS peak) it must exceed dynamically set threshold value.
                 if most_recent_peak_value > self.threshold_value:
                     self.handle_detection()
-                    self.detected_qrs = 1
                     self.samples_since_last_detected_qrs = 0
+
+                    # We mark QRS detection with '1' flag in 'qrs_detected' log column ('0' otherwise).
+                    self.detected_qrs = 1
 
                     # Adjust signal peak value used later for setting QRS-noise threshold.
                     self.signal_peak_value = self.signal_peak_filtering_factor * most_recent_peak_value + \
