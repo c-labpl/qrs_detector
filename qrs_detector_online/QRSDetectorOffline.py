@@ -37,6 +37,8 @@ class QRSDetectorOffline(object):
         QRSDetector class initialisation method.
         """
         # Configuration parameters.
+        self.ecg_data_path = ecg_data_path
+
         self.signal_frequency = 250  # Set ECG device frequency in samples per second here.
 
         self.filter_lowcut = 0.0
@@ -76,10 +78,9 @@ class QRSDetectorOffline(object):
         self.ecg_data_detected = None
 
         # Load data and run the detection flow.
-        self.load_ecg_data(ecg_data_path)
-        self.detect_peaks(self.ecg_data_raw)
-        self.detect_qrs(detected_peaks_indices=self.detected_peaks_indices,
-                        detected_peaks_values=self.detected_peaks_values)
+        self.load_ecg_data()
+        self.detect_peaks()
+        self.detect_qrs()
 
         if verbose:
             self.print_detection_data()
@@ -87,23 +88,22 @@ class QRSDetectorOffline(object):
         if log_data:
             self.log_path = "{:s}QRS_offline_detector_log_{:s}.csv".format(LOG_DIR,
                                                                            strftime("%Y_%m_%d_%H_%M_%S", gmtime()))
-            self.log_data(self.log_path, self.ecg_data_detected)
+            self.log_refactor_data()
 
     """Loading ECG measurements data methods."""
 
-    def load_ecg_data(self, ecg_data_path):
-        self.ecg_data_raw = np.loadtxt(ecg_data_path, skiprows=1, delimiter=',')
+    def load_ecg_data(self):
+        self.ecg_data_raw = np.loadtxt(self.ecg_data_path, skiprows=1, delimiter=',')
 
     """ECG measurements data processing methods."""
 
-    def detect_peaks(self, ecg_data):
+    def detect_peaks(self):
         """
         Method responsible for extracting peaks from loaded ECG measurements data through signal processing.
-        :param array ecg_data: most recent ECG measurements array
         """
 
         # Extract measurements from loaded ECG data.
-        ecg_measurements = ecg_data[:, 1]
+        ecg_measurements = self.ecg_data_raw[:, 1]
 
         # Signal filtering - 0-15 Hz band pass filter.
         self.filtered_signal = self.bandpass_filter(ecg_measurements, lowcut=self.filter_lowcut,
@@ -128,12 +128,12 @@ class QRSDetectorOffline(object):
 
     """QRS detection methods."""
 
-    def detect_qrs(self, detected_peaks_indices, detected_peaks_values):
+    def detect_qrs(self):
         """
         Method responsible for classifying detected ECG signal peaks either as noise or as QRS complex (heart beat).
         :param array detected_peaks_values: detected peaks values array
         """
-        for detected_peak_index, detected_peaks_value in zip(detected_peaks_indices, detected_peaks_values):
+        for detected_peak_index, detected_peaks_value in zip(self.detected_peaks_indices, self.detected_peaks_values):
 
             try:
                 last_qrs_index = self.qrs_peaks_indices[-1]
@@ -166,6 +166,24 @@ class QRSDetectorOffline(object):
         measurement_qrs_detection_flag = np.zeros([len(self.ecg_data_raw[:, 1]), 1])
         measurement_qrs_detection_flag[self.qrs_peaks_indices] = 1
         self.ecg_data_detected = np.append(self.ecg_data_raw, measurement_qrs_detection_flag, 1)
+
+    """Results reporting methods."""
+
+    def print_detection_data(self):
+        print("qrs peaks indices")
+        print(self.qrs_peaks_indices)
+        print("noise peaks indices")
+        print(self.noise_peaks_indices)
+
+    def log_refactor_data(self):
+        """
+        Method responsible for logging measured ECG and detection results to a log file.
+        :param str path: path to a log file
+        :param str data: data line to log
+        """
+        with open(self.log_path, "wb") as fin:
+            fin.write(b"timestamp,ecg_measurement,qrs_detected\n")
+            np.savetxt(fin, self.detected_peaks_values, delimiter=",")
 
     """Tools methods."""
 
@@ -218,22 +236,6 @@ class QRSDetectorOffline(object):
         if limit is not None:
             ind = ind[data[ind] > limit]
         return ind
-
-    def print_detection_data(self):
-        print("qrs peaks indices")
-        print(self.qrs_peaks_indices)
-        print("noise peaks indices")
-        print(self.noise_peaks_indices)
-
-    def log_data(self, path, data):
-        """
-        Method responsible for logging measured ECG and detection results to a log file.
-        :param str path: path to a log file
-        :param str data: data line to log
-        """
-        with open(path, "wb") as fin:
-            fin.write(b"timestamp,ecg_measurement,qrs_detected\n")
-            np.savetxt(fin, data, delimiter=",")
 
 
 if __name__ == "__main__":
