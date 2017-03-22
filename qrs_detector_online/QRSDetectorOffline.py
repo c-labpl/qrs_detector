@@ -1,6 +1,8 @@
 import numpy as np
+import matplotlib.pyplot as plt
 from time import gmtime, strftime
 from scipy.signal import butter, lfilter
+
 
 LOG_DIR = "logs_offline/"
 
@@ -59,9 +61,9 @@ class QRSDetectorOffline(object):
         self.ecg_data_raw = None
 
         # Measured and calculated values.
-        self.filtered_signal = None
-        self.differentiated_signal = None
-        self.squared_signal = None
+        self.filtered_ecg_measurements = None
+        self.differentiated_ecg_measurements = None
+        self.squared_ecg_measurements = None
         self.integrated_signal = None
         self.detected_peaks_indices = None
         self.detected_peaks_values = None
@@ -90,6 +92,44 @@ class QRSDetectorOffline(object):
                                                                            strftime("%Y_%m_%d_%H_%M_%S", gmtime()))
             self.log_detection_data()
 
+        self.plot_detection_data()
+
+    def plot_detection_data(self):
+
+        def set_axis(axis, data, title='', fontsize=10):
+            axis.plot(data, color="salmon")
+            axis.set_title(title, fontsize=fontsize)
+            axis.grid(which='both', axis='both', linestyle='--')
+
+            # axes.plot(x, 'bo--', label="ecg", linewidth=3, label = "First")
+            # axes.plot(x, 'r--', label="ecg", linewidth=3, label = "First")
+            # axis.set_xlabel("x")
+            # axis.set_ylabel("y")
+            # axes.legend(loc == "upper left")
+
+
+        plt.close('all')
+
+        fig, axarr = plt.subplots(7, sharex=True, figsize=(15, 18))
+
+        set_axis(axis=axarr[0], data=self.ecg_data_raw[:, 1], title='Raw ECG measurements')
+        set_axis(axis=axarr[1], data=self.filtered_ecg_measurements, title='Filtered ECG signal')
+        set_axis(axis=axarr[2], data=self.differentiated_ecg_measurements, title='Differentiated ECG signal')
+        set_axis(axis=axarr[3], data=self.squared_ecg_measurements, title='Squared ECG signal')
+        set_axis(axis=axarr[4], data=self.integrated_signal, title='Integrated ECG signal')
+        set_axis(axis=axarr[5], data=self.ecg_data_raw[:, 1], title='Detected peaks on integrated ECG signal')
+        set_axis(axis=axarr[6], data=self.ecg_data_raw[:, 1], title='QRS and noise peaks marked on raw ECG signal')
+
+        plt.tight_layout()
+
+        fig.savefig('test.png')
+
+        plt.show()
+        # TODO: Save it with the same timestamp and name as log.
+        # fig.savefig(PLOTS_PATH + scenario_title + '.png')
+
+        plt.close()
+
     """Loading ECG measurements data methods."""
 
     def load_ecg_data(self):
@@ -106,18 +146,18 @@ class QRSDetectorOffline(object):
         ecg_measurements = self.ecg_data_raw[:, 1]
 
         # Signal filtering - 0-15 Hz band pass filter.
-        self.filtered_signal = self.bandpass_filter(ecg_measurements, lowcut=self.filter_lowcut,
-                                               highcut=self.filter_highcut, signal_freq=self.signal_frequency,
-                                               filter_order=self.filter_order)
+        self.filtered_ecg_measurements = self.bandpass_filter(ecg_measurements, lowcut=self.filter_lowcut,
+                                                              highcut=self.filter_highcut, signal_freq=self.signal_frequency,
+                                                              filter_order=self.filter_order)
 
         # Derivative - provides QRS slope information.
-        self.differentiated_signal = np.ediff1d(self.filtered_signal)
+        self.differentiated_ecg_measurements = np.ediff1d(self.filtered_ecg_measurements)
 
         # Squaring - intensifies values received in derivative.
-        self.squared_signal = self.differentiated_signal ** 2
+        self.squared_ecg_measurements = self.differentiated_ecg_measurements ** 2
 
         # Moving-window integration.
-        self.integrated_signal = np.convolve(self.squared_signal, np.ones(self.integration_window))
+        self.integrated_signal = np.convolve(self.squared_ecg_measurements, np.ones(self.integration_window))
 
         # Fiducial mark - peak detection on integrated signal.
         self.detected_peaks_indices = self.findpeaks(data=self.integrated_signal,
