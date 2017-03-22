@@ -1,5 +1,9 @@
 import numpy as np
+from time import gmtime, strftime
 from scipy.signal import butter, lfilter
+
+LOG_DIR = "logs_offline/"
+
 
 class QRSDetectorOffline(object):
     """
@@ -28,7 +32,7 @@ class QRSDetectorOffline(object):
     SOFTWARE.
     """
 
-    def __init__(self, ecg_data_path, verbose=False):
+    def __init__(self, ecg_data_path, verbose=False, log_data=False):
         """
         QRSDetector class initialisation method.
         """
@@ -78,13 +82,12 @@ class QRSDetectorOffline(object):
                         detected_peaks_values=self.detected_peaks_values)
 
         if verbose:
-            # TODO: Move it to function - print report.
-            print("qrs peaks indices")
-            print(self.qrs_peaks_indices)
-            print("noise peaks indices")
-            print(self.noise_peaks_indices)
-            print("ecg data detected")
-            print(self.ecg_data_detected)
+            self.print_detection_data()
+
+        if log_data:
+            self.log_path = "{:s}QRS_offline_detector_log_{:s}.csv".format(LOG_DIR,
+                                                                           strftime("%Y_%m_%d_%H_%M_%S", gmtime()))
+            self.log_data(self.log_path, self.ecg_data_detected)
 
     """Loading ECG measurements data methods."""
 
@@ -158,7 +161,8 @@ class QRSDetectorOffline(object):
                 self.threshold_value = self.noise_peak_value + \
                                        self.signal_noise_diff_weight * (self.signal_peak_value - self.noise_peak_value)
 
-        # Create array containing both input ECG measurements data and detected QRS marked with 1 value.
+        # Create array containing both input ECG measurements data and QRS detection indication column.
+        # We mark QRS detection with '1' flag in 'qrs_detected' log column ('0' otherwise).
         measurement_qrs_detection_flag = np.zeros([len(self.ecg_data_raw[:, 1]), 1])
         measurement_qrs_detection_flag[self.qrs_peaks_indices] = 1
         self.ecg_data_detected = np.append(self.ecg_data_raw, measurement_qrs_detection_flag, 1)
@@ -215,7 +219,22 @@ class QRSDetectorOffline(object):
             ind = ind[data[ind] > limit]
         return ind
 
+    def print_detection_data(self):
+        print("qrs peaks indices")
+        print(self.qrs_peaks_indices)
+        print("noise peaks indices")
+        print(self.noise_peaks_indices)
+
+    def log_data(self, path, data):
+        """
+        Method responsible for logging measured ECG and detection results to a log file.
+        :param str path: path to a log file
+        :param str data: data line to log
+        """
+        with open(path, "wb") as fin:
+            fin.write(b"timestamp,ecg_measurement,qrs_detected\n")
+            np.savetxt(fin, data, delimiter=",")
+
 
 if __name__ == "__main__":
-    qrs_detector = QRSDetectorOffline(ecg_data_path="ecg_data/ecg_data_1.csv",
-                                      verbose=True)
+    qrs_detector = QRSDetectorOffline(ecg_data_path="ecg_data/ecg_data_1.csv", verbose=True, log_data=True)
