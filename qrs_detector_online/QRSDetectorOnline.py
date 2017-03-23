@@ -57,9 +57,9 @@ class QRSDetectorOnline(object):
         self.detection_window = 40  # Change proportionally when adjusting frequency (in samples).
 
         self.refractory_period = 120  # Change proportionally when adjusting frequency (in samples).
-        self.signal_peak_filtering_factor = 0.125
+        self.qrs_peak_filtering_factor = 0.125
         self.noise_peak_filtering_factor = 0.125
-        self.signal_noise_diff_weight = 0.25
+        self.qrs_noise_diff_weight = 0.25
 
         # Measurements and calculated values.
         self.timestamp = 0
@@ -67,7 +67,7 @@ class QRSDetectorOnline(object):
         self.detected_qrs = 0
         self.most_recent_measurements = deque([0], self.number_of_samples_stored)
         self.samples_since_last_detected_qrs = 0
-        self.signal_peak_value = 0.0
+        self.qrs_peak_value = 0.0
         self.noise_peak_value = 0.0
         self.threshold_value = 0.0
 
@@ -131,38 +131,38 @@ class QRSDetectorOnline(object):
 
     def detect_peaks(self, most_recent_measurements):
         """
-        Method responsible for extracting peaks from recently received ECG measurements data through signal processing.
+        Method responsible for extracting peaks from recently received ECG measurements through processing.
         :param deque most_recent_measurements: most recent ECG measurements array
         """
-        # Signal filtering - 0-15 Hz band pass filter.
-        filtered_signal = self.bandpass_filter(most_recent_measurements, lowcut=self.filter_lowcut,
-                                               highcut=self.filter_highcut, signal_freq=self.signal_frequency,
-                                               filter_order=self.filter_order)
+        # Measurements filtering - 0-15 Hz band pass filter.
+        filtered_ecg_measurements = self.bandpass_filter(most_recent_measurements, lowcut=self.filter_lowcut,
+                                                         highcut=self.filter_highcut, signal_freq=self.signal_frequency,
+                                                         filter_order=self.filter_order)
 
         # Derivative - provides QRS slope information.
-        differentiated_signal = np.ediff1d(filtered_signal)
+        differentiated_ecg_measurements = np.ediff1d(filtered_ecg_measurements)
 
         # Squaring - intensifies values received in derivative.
-        squared_signal = differentiated_signal ** 2
+        squared_ecg_measurements = differentiated_ecg_measurements ** 2
 
         # Moving-window integration.
-        integrated_signal = np.convolve(squared_signal, np.ones(self.integration_window))
+        integrated_ecg_measurements = np.convolve(squared_ecg_measurements, np.ones(self.integration_window))
 
-        # Fiducial mark - peak detection on integrated signal.
-        detected_peaks_indices = self.findpeaks(data=integrated_signal,
+        # Fiducial mark - peak detection on integrated measurements.
+        detected_peaks_indices = self.findpeaks(data=integrated_ecg_measurements,
                                                 limit=self.findpeaks_limit,
                                                 spacing=self.findpeaks_spacing)
         detected_peaks_indices = detected_peaks_indices[
             detected_peaks_indices > self.number_of_samples_stored - self.detection_window]
-        detected_peaks_values = integrated_signal[detected_peaks_indices]
+        detected_peaks_values = integrated_ecg_measurements[detected_peaks_indices]
 
-        self.detect_qrs(detected_peaks_values=detected_peaks_values)
+        self.classify_peaks(detected_peaks_values=detected_peaks_values)
 
     """QRS detection methods."""
 
-    def detect_qrs(self, detected_peaks_values):
+    def classify_peaks(self, detected_peaks_values):
         """
-        Method responsible for classifying detected ECG signal peaks either as noise or as QRS complex (heart beat).
+        Method responsible for classifying detected ECG measurements peaks either as noise or as QRS complex (heart beat).
         :param array detected_peaks_values: detected peaks values array
         """
         self.samples_since_last_detected_qrs += 1
@@ -176,8 +176,8 @@ class QRSDetectorOnline(object):
                 # Take the last one detected in analysed samples window as the most recent.
                 most_recent_peak_value = detected_peaks_values[-1]
 
-                # Peak must be classified either as a noise peak or a signal peak.
-                # To be classified as a signal peak (QRS peak) it must exceed dynamically set threshold value.
+                # Peak must be classified either as a noise peak or a QRS peak.
+                # To be classified as a QRS peak it must exceed dynamically set threshold value.
                 if most_recent_peak_value > self.threshold_value:
                     self.handle_detection()
                     self.samples_since_last_detected_qrs = 0
@@ -185,9 +185,9 @@ class QRSDetectorOnline(object):
                     # We mark QRS detection with '1' flag in 'qrs_detected' log column ('0' otherwise).
                     self.detected_qrs = 1
 
-                    # Adjust signal peak value used later for setting QRS-noise threshold.
-                    self.signal_peak_value = self.signal_peak_filtering_factor * most_recent_peak_value + \
-                                             (1 - self.signal_peak_filtering_factor) * self.signal_peak_value
+                    # Adjust QRS peak value used later for setting QRS-noise threshold.
+                    self.qrs_peak_value = self.qrs_peak_filtering_factor * most_recent_peak_value + \
+                                             (1 - self.qrs_peak_filtering_factor) * self.qrs_peak_value
                 else:
                     # Adjust noise peak value used later for setting QRS-noise threshold.
                     self.noise_peak_value = self.noise_peak_filtering_factor * most_recent_peak_value + \
@@ -195,7 +195,7 @@ class QRSDetectorOnline(object):
 
                 # Adjust QRS-noise threshold value based on previously detected QRS or noise peaks value.
                 self.threshold_value = self.noise_peak_value + \
-                                       self.signal_noise_diff_weight * (self.signal_peak_value - self.noise_peak_value)
+                                       self.qrs_noise_diff_weight * (self.qrs_peak_value - self.noise_peak_value)
 
     def handle_detection(self):
         """
@@ -216,7 +216,7 @@ class QRSDetectorOnline(object):
 
     def bandpass_filter(self, data, lowcut, highcut, signal_freq, filter_order):
         """
-        Method responsible for creating and applying Butterworth digital filter for received ECG signal.
+        Method responsible for creating and applying Butterworth filter.
         :param deque data: raw data
         :param float lowcut: filter lowcut frequency value
         :param float highcut: filter highcut frequency value
