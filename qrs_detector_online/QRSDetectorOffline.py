@@ -4,7 +4,7 @@ from time import gmtime, strftime
 from scipy.signal import butter, lfilter
 
 
-LOG_DIR = "logs_offline/"
+LOG_DIR = "logs/"
 PLOT_DIR = "plots/"
 
 
@@ -87,7 +87,6 @@ class QRSDetectorOffline(object):
 
         if verbose:
             self.print_detection_data()
-
         if log_data:
             self.log_path = "{:s}QRS_offline_detector_log_{:s}.csv".format(LOG_DIR,
                                                                            strftime("%Y_%m_%d_%H_%M_%S", gmtime()))
@@ -111,8 +110,27 @@ class QRSDetectorOffline(object):
             # axis.set_ylabel("y")
             # axes.legend(loc == "upper left")
 
-        plt.close('all')
+        def set_peaks(axis, data, peaks):
 
+            # self.qrs_peaks_indices
+            # self.noise_peaks_indices
+            #
+            # measurement_qrs_detection_flag = np.zeros([len(self.ecg_data_raw[:, 1]), 1])
+            # measurement_qrs_detection_flag[self.qrs_peaks_indices] = 1
+            # self.ecg_data_detected = np.append(self.ecg_data_raw, measurement_qrs_detection_flag, 1)
+
+            # self.ecg_data_detected[:, 1]
+
+            axis.plot(peaks, 'bo')
+
+
+            # axes.plot(x, 'bo--', label="ecg", linewidth=3, label = "First")
+            # axes.plot(x, 'r--', label="ecg", linewidth=3, label = "First")
+            # axis.set_xlabel("x")
+            # axis.set_ylabel("y")
+            # axes.legend(loc == "upper left")
+
+        plt.close('all')
         fig, axarr = plt.subplots(6, sharex=True, figsize=(15, 18))
 
         set_axis(axis=axarr[0], data=self.ecg_data_raw[:, 1], title='Raw ECG measurements')
@@ -120,12 +138,11 @@ class QRSDetectorOffline(object):
         set_axis(axis=axarr[2], data=self.differentiated_ecg_measurements, title='Differentiated ECG measurements')
         set_axis(axis=axarr[3], data=self.squared_ecg_measurements, title='Squared ECG measurements')
         set_axis(axis=axarr[4], data=self.integrated_ecg_measurements, title='Integrated ECG measurements with marked detected peaks')
-        set_axis(axis=axarr[5], data=self.ecg_data_raw[:, 1], title='QRS and noise peaks marked on raw ECG measurements')
+        set_peaks(axis=axarr[4], data=self.integrated_ecg_measurements, peaks=self.ecg_data_detected[:, 2])
+        set_axis(axis=axarr[5], data=self.ecg_data_detected[:, 1], title='Raw ECG measurements with QRS peaks (red) and noise peaks (blue) marked')
 
         plt.tight_layout()
-
         fig.savefig(self.plot_path)
-
         plt.close()
 
     """Loading ECG measurements data methods."""
@@ -220,7 +237,7 @@ class QRSDetectorOffline(object):
         """
         with open(self.log_path, "wb") as fin:
             fin.write(b"timestamp,ecg_measurement,qrs_detected\n")
-            np.savetxt(fin, self.detected_peaks_values, delimiter=",")
+            np.savetxt(fin, self.ecg_data_detected, delimiter=",")
 
     """Tools methods."""
 
@@ -275,4 +292,5 @@ class QRSDetectorOffline(object):
 
 
 if __name__ == "__main__":
-    qrs_detector = QRSDetectorOffline(ecg_data_path="ecg_data/ecg_data_1.csv", verbose=True, log_data=True)
+    qrs_detector = QRSDetectorOffline(ecg_data_path="ecg_data/ecg_data_1.csv", verbose=True,
+                                      log_data=True, plot_data=True)
