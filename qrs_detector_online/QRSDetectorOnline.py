@@ -4,7 +4,7 @@ from collections import deque
 from time import gmtime, strftime
 from scipy.signal import butter, lfilter
 
-LOG_DIR = "logs_online/"
+LOG_DIR = "logs/"
 
 
 class QRSDetectorOnline(object):
