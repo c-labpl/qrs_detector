@@ -83,10 +83,12 @@ class QRSDetectorOffline(object):
         # Load data and run the detection flow.
         self.load_ecg_data()
         self.detect_peaks()
-        self.classify_peaks()
+        self.detect_qrs()
+
 
         if verbose:
             self.print_detection_data()
+
         if log_data:
             self.log_path = "{:s}QRS_offline_detector_log_{:s}.csv".format(LOG_DIR,
                                                                            strftime("%Y_%m_%d_%H_%M_%S", gmtime()))
@@ -96,54 +98,6 @@ class QRSDetectorOffline(object):
             self.plot_path = "{:s}QRS_offline_detector_plot_{:s}.png".format(PLOT_DIR,
                                                                              strftime("%Y_%m_%d_%H_%M_%S", gmtime()))
             self.plot_detection_data()
-
-    def plot_detection_data(self):
-
-        def set_axis(axis, data, title='', fontsize=10):
-            axis.plot(data, color="salmon")
-            axis.set_title(title, fontsize=fontsize)
-            axis.grid(which='both', axis='both', linestyle='--')
-
-            # axes.plot(x, 'bo--', label="ecg", linewidth=3, label = "First")
-            # axes.plot(x, 'r--', label="ecg", linewidth=3, label = "First")
-            # axis.set_xlabel("x")
-            # axis.set_ylabel("y")
-            # axes.legend(loc == "upper left")
-
-        def set_peaks(axis, data, peaks):
-
-            # self.qrs_peaks_indices
-            # self.noise_peaks_indices
-            #
-            # measurement_qrs_detection_flag = np.zeros([len(self.ecg_data_raw[:, 1]), 1])
-            # measurement_qrs_detection_flag[self.qrs_peaks_indices] = 1
-            # self.ecg_data_detected = np.append(self.ecg_data_raw, measurement_qrs_detection_flag, 1)
-
-            # self.ecg_data_detected[:, 1]
-
-            axis.plot(peaks, 'bo')
-
-
-            # axes.plot(x, 'bo--', label="ecg", linewidth=3, label = "First")
-            # axes.plot(x, 'r--', label="ecg", linewidth=3, label = "First")
-            # axis.set_xlabel("x")
-            # axis.set_ylabel("y")
-            # axes.legend(loc == "upper left")
-
-        plt.close('all')
-        fig, axarr = plt.subplots(6, sharex=True, figsize=(15, 18))
-
-        set_axis(axis=axarr[0], data=self.ecg_data_raw[:, 1], title='Raw ECG measurements')
-        set_axis(axis=axarr[1], data=self.filtered_ecg_measurements, title='Filtered ECG measurements')
-        set_axis(axis=axarr[2], data=self.differentiated_ecg_measurements, title='Differentiated ECG measurements')
-        set_axis(axis=axarr[3], data=self.squared_ecg_measurements, title='Squared ECG measurements')
-        set_axis(axis=axarr[4], data=self.integrated_ecg_measurements, title='Integrated ECG measurements with marked detected peaks')
-        set_peaks(axis=axarr[4], data=self.integrated_ecg_measurements, peaks=self.ecg_data_detected[:, 2])
-        set_axis(axis=axarr[5], data=self.ecg_data_detected[:, 1], title='Raw ECG measurements with QRS peaks (red) and noise peaks (blue) marked')
-
-        plt.tight_layout()
-        fig.savefig(self.plot_path)
-        plt.close()
 
     """Loading ECG measurements data methods."""
 
@@ -163,6 +117,7 @@ class QRSDetectorOffline(object):
         self.filtered_ecg_measurements = self.bandpass_filter(ecg_measurements, lowcut=self.filter_lowcut,
                                                               highcut=self.filter_highcut, signal_freq=self.signal_frequency,
                                                               filter_order=self.filter_order)
+        self.filtered_ecg_measurements[:5] = self.filtered_ecg_measurements[5]
 
         # Derivative - provides QRS slope information.
         self.differentiated_ecg_measurements = np.ediff1d(self.filtered_ecg_measurements)
@@ -182,7 +137,7 @@ class QRSDetectorOffline(object):
 
     """QRS detection methods."""
 
-    def classify_peaks(self):
+    def detect_qrs(self):
         """
         Method responsible for classifying detected ECG measurements peaks either as noise or as QRS complex (heart beat).
         :param array detected_peaks_values: detected peaks values array
@@ -238,6 +193,32 @@ class QRSDetectorOffline(object):
         with open(self.log_path, "wb") as fin:
             fin.write(b"timestamp,ecg_measurement,qrs_detected\n")
             np.savetxt(fin, self.ecg_data_detected, delimiter=",")
+
+    def plot_detection_data(self):
+
+        def plot_data(axis, data, title='', fontsize=10):
+            axis.set_title(title, fontsize=fontsize)
+            axis.grid(which='both', axis='both', linestyle='--')
+            axis.plot(data, color="salmon", zorder=1)
+
+        def plot_points(axis, values, indices):
+            axis.scatter(x=indices, y=values[indices], c="black", s=50, zorder=2)
+
+        plt.close('all')
+        fig, axarr = plt.subplots(6, sharex=True, figsize=(15, 18))
+
+        plot_data(axis=axarr[0], data=self.ecg_data_raw[:, 1], title='Raw ECG measurements')
+        plot_data(axis=axarr[1], data=self.filtered_ecg_measurements, title='Filtered ECG measurements')
+        plot_data(axis=axarr[2], data=self.differentiated_ecg_measurements, title='Differentiated ECG measurements')
+        plot_data(axis=axarr[3], data=self.squared_ecg_measurements, title='Squared ECG measurements')
+        plot_data(axis=axarr[4], data=self.integrated_ecg_measurements, title='Integrated ECG measurements with QRS peaks marked (black)')
+        plot_points(axis=axarr[4], values=self.integrated_ecg_measurements, indices=self.qrs_peaks_indices)
+        plot_data(axis=axarr[5], data=self.ecg_data_detected[:, 1], title='Raw ECG measurements with QRS peaks marked (black)')
+        plot_points(axis=axarr[5], values=self.ecg_data_detected[:, 1], indices=self.qrs_peaks_indices)
+
+        plt.tight_layout()
+        fig.savefig(self.plot_path)
+        plt.close()
 
     """Tools methods."""
 
