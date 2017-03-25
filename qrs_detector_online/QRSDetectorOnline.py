@@ -156,11 +156,11 @@ class QRSDetectorOnline(object):
             detected_peaks_indices > self.number_of_samples_stored - self.detection_window]
         detected_peaks_values = integrated_ecg_measurements[detected_peaks_indices]
 
-        self.classify_peaks(detected_peaks_values=detected_peaks_values)
+        self.detect_qrs(detected_peaks_values=detected_peaks_values)
 
     """QRS detection methods."""
 
-    def classify_peaks(self, detected_peaks_values):
+    def detect_qrs(self, detected_peaks_values):
         """
         Method responsible for classifying detected ECG measurements peaks either as noise or as QRS complex (heart beat).
         :param array detected_peaks_values: detected peaks values array
