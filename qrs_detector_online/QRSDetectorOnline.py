@@ -7,9 +7,31 @@ from scipy.signal import butter, lfilter
 LOG_DIR = "logs/"
 
 
+
 class QRSDetectorOnline(object):
     """
-    Online QRS complex detector.
+    Online ECG signal based Pan-Tomkins QRS detection algorithm.
+
+
+    QRS complex corresponds to the depolarization of the right and left ventricles of the human heart.
+    It is the most most visually obvious part of the ECG signal.
+
+    The module is online Python implementation of QRS complex detection in the ECG signal based
+    on the Pan-Tomkins algorithm: Pan J, Tompkins W.J., A real-time QRS detection algorithm,
+    IEEE Transactions on Biomedical Engineering, Vol. BME-32, No. 3, March 1985, pp. 230-236.
+
+    Online version detects QRS complexes in the real-time acquired ECG signal. So, it requires an ECG device to be
+    plugged in and gathering signal in the real time.
+
+    You can find more information in module documentation:
+    <github link here>
+
+    If you decided to use this module in research project please consider citing it:
+    <citation>
+
+    If you decided to use this module in any other context please link to module repository:
+    <github link here>
+
 
     MIT License
 

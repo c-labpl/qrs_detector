@@ -10,7 +10,27 @@ PLOT_DIR = "plots/"
 
 class QRSDetectorOffline(object):
     """
-    Offline QRS complex detector.
+    Offline ECG signal based Pan-Tomkins QRS detection algorithm.
+
+    QRS complex corresponds to the depolarization of the right and left ventricles of the human heart.
+    It is the most most visually obvious part of the ECG signal.
+
+    The module is offline Python implementation of QRS complex detection in the ECG signal based
+    on the Pan-Tomkins algorithm: Pan J, Tompkins W.J., A real-time QRS detection algorithm,
+    IEEE Transactions on Biomedical Engineering, Vol. BME-32, No. 3, March 1985, pp. 230-236.
+
+    Offline version detects QRS complexes within a pre-recorded and saved ECG signal data set
+    (e.g. stored in .csv format).
+
+    You can find more information in module documentation:
+    <github link here>
+
+    If you decided to use this module in research project please consider citing it:
+    <citation>
+
+    If you decided to use this module in any other context please link to module repository:
+    <github link here>
+
 
     MIT License
 
