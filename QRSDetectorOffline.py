@@ -9,8 +9,8 @@ PLOT_DIR = "plots/"
 
 
 class QRSDetectorOffline(object):
-    """
-    Offline ECG signal based Pan-Tomkins QRS detection algorithm.
+    """x
+    Python offline QRS detector in ECG signal based on the Pan-Tomkins algorithm.
 
     QRS complex corresponds to the depolarization of the right and left ventricles of the human heart.
     It is the most most visually obvious part of the ECG signal.
