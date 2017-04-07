@@ -7,7 +7,6 @@ from scipy.signal import butter, lfilter
 LOG_DIR = "logs/"
 
 
-
 class QRSDetectorOnline(object):
     """
     Online ECG signal based Pan-Tomkins QRS detection algorithm.
@@ -119,9 +118,10 @@ class QRSDetectorOnline(object):
             raw_measurement = serial_port.readline()
             self.process_measurement(raw_measurement=raw_measurement)
 
-            self.log_data(self.log_path, "{:d},{:.10f},{:d}\n".format(int(self.timestamp),
-                                                                      self.measurement,
-                                                                      self.detected_qrs))
+            if self.timestamp != 0:
+                self.log_data(self.log_path, "{:d},{:.10f},{:d}\n".format(int(self.timestamp),
+                                                                          self.measurement,
+                                                                          self.detected_qrs))
 
     """ECG measurements data processing methods."""
 
