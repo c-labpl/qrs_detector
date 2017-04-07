@@ -55,13 +55,14 @@ class QRSDetectorOffline(object):
     SOFTWARE.
     """
 
-    def __init__(self, ecg_data_path, verbose=True, log_data=False, plot_data=False):
+    def __init__(self, ecg_data_path, verbose=True, log_data=False, plot_data=False, show_plot=False):
         """
         QRSDetectorOffline class initialisation method.
         :param string ecg_data_path: path to the ECG dataset
         :param bool verbose: flag for printing the results
         :param bool log_data: flag for logging the results
-        :param bool plot_data: flag for plotting the results
+        :param bool plot_data: flag for plotting the results to a file
+        :param bool plot_data: flag for showing generated results plot - will not show anything if plot is not generated
         """
         # Configuration parameters.
         self.ecg_data_path = ecg_data_path
@@ -120,7 +121,7 @@ class QRSDetectorOffline(object):
         if plot_data:
             self.plot_path = "{:s}QRS_offline_detector_plot_{:s}.png".format(PLOT_DIR,
                                                                              strftime("%Y_%m_%d_%H_%M_%S", gmtime()))
-            self.plot_detection_data()
+            self.plot_detection_data(show_plot=show_plot)
 
     """Loading ECG measurements data methods."""
 
@@ -220,9 +221,10 @@ class QRSDetectorOffline(object):
             fin.write(b"timestamp,ecg_measurement,qrs_detected\n")
             np.savetxt(fin, self.ecg_data_detected, delimiter=",")
 
-    def plot_detection_data(self):
+    def plot_detection_data(self, show_plot=False):
         """
         Method responsible for plotting detection results.
+        :param bool show_plot: flag for plotting the results and showing plot
         """
         def plot_data(axis, data, title='', fontsize=10):
             axis.set_title(title, fontsize=fontsize)
@@ -246,6 +248,10 @@ class QRSDetectorOffline(object):
 
         plt.tight_layout()
         fig.savefig(self.plot_path)
+
+        if show_plot:
+            plt.show()
+
         plt.close()
 
     """Tools methods."""
@@ -302,4 +308,4 @@ class QRSDetectorOffline(object):
 
 if __name__ == "__main__":
     qrs_detector = QRSDetectorOffline(ecg_data_path="ecg_data/ecg_data_1.csv", verbose=True,
-                                      log_data=True, plot_data=True)
+                                      log_data=True, plot_data=True, show_plot=False)
