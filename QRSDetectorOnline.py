@@ -127,9 +127,9 @@ class QRSDetectorOnline(object):
     def process_measurement(self, raw_measurement):
         """
         Method responsible for parsing and initial processing of ECG measured data sample.
-        :param str raw_measurement: ECG most recent raw measurement in "timestamp;measurement" format
+        :param str raw_measurement: ECG most recent raw measurement in "timestamp,measurement" format
         """
-        raw_measurement_split = raw_measurement.decode().rstrip().split(';')
+        raw_measurement_split = raw_measurement.decode().rstrip().split(',')
 
         # Parsing raw ECG data - modify this part in accordance to your device data format.
         if len(raw_measurement_split) != 2:

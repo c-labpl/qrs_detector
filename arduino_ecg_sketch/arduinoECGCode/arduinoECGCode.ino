@@ -45,7 +45,7 @@ void loop() {
   
   //Print in a file for simulation
   Serial.print(time);
-  Serial.print(";");
+  Serial.print(",");
   Serial.print(ECG, DEC); 
   Serial.println("");
   delay(2);
