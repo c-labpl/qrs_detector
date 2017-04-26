@@ -9,7 +9,7 @@ PLOT_DIR = "plots/"
 
 
 class QRSDetectorOffline(object):
-    """x
+    """
     Python offline QRS detector in ECG signal based on the Pan-Tomkins algorithm.
 
     QRS complex corresponds to the depolarization of the right and left ventricles of the human heart.
@@ -30,7 +30,6 @@ class QRSDetectorOffline(object):
 
     If you decided to use this module in any other context please link to module repository:
     <github link here>
-
 
     MIT License
 
@@ -62,7 +61,7 @@ class QRSDetectorOffline(object):
         :param bool verbose: flag for printing the results
         :param bool log_data: flag for logging the results
         :param bool plot_data: flag for plotting the results to a file
-        :param bool plot_data: flag for showing generated results plot - will not show anything if plot is not generated
+        :param bool show_plot: flag for showing generated results plot - will not show anything if plot is not generated
         """
         # Configuration parameters.
         self.ecg_data_path = ecg_data_path
