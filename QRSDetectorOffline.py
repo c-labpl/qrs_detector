@@ -10,30 +10,34 @@ PLOT_DIR = "plots/"
 
 class QRSDetectorOffline(object):
     """
-    Python offline QRS detector in ECG signal based on the Pan-Tomkins algorithm.
+    Python Offline ECG QRS Detector based on the Pan-Tomkins algorithm.
+    
+    Michał Sznajder (Jagiellonian University) - technical contact (msznajder@gmail.com)
+    Marta Łukowska (Jagiellonian University)
 
-    QRS complex corresponds to the depolarization of the right and left ventricles of the human heart.
-    It is the most most visually obvious part of the ECG signal.
 
     The module is offline Python implementation of QRS complex detection in the ECG signal based
     on the Pan-Tomkins algorithm: Pan J, Tompkins W.J., A real-time QRS detection algorithm,
     IEEE Transactions on Biomedical Engineering, Vol. BME-32, No. 3, March 1985, pp. 230-236.
 
-    Offline version detects QRS complexes within a pre-recorded and saved ECG signal data set
-    (e.g. stored in .csv format).
+    The QRS complex corresponds to the depolarization of the right and left ventricles of the human heart. It is the most visually obvious part of the ECG signal. QRS complex detection is essential for time-domain ECG signal analyses, namely heart rate variability. It makes it possible to compute inter-beat interval (RR interval) values that correspond to the time between two consecutive R peaks. Thus, a QRS complex detector is an ECG-based heart contraction detector.
+
+    Offline version detects QRS complexes in a pre-recorded ECG signal dataset (e.g. stored in .csv format).
+
+    This implementation of a QRS Complex Detector is by no means a certified medical tool and should not be used in health monitoring. It was created and used for experimental purposes in psychophysiology and psychology.
 
     You can find more information in module documentation:
-    <github link here>
+    https://github.com/c-labpl/qrs_detector
 
-    If you decided to use this module in research project please consider citing it:
-    <citation>
+    If you use these modules in a research project, please consider citing it:
+    https://zenodo.org/record/583770
 
-    If you decided to use this module in any other context please link to module repository:
-    <github link here>
+    If you use these modules in any other project, please refer to MIT open-source license.
+
 
     MIT License
 
-    Copyright (c) 2017 Marta Łukowska, Michał Sznajder
+    Copyright (c) 2017 Michał Sznajder, Marta Łukowska
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
