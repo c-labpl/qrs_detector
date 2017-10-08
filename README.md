@@ -1,5 +1,9 @@
 # Python Online and Offline ECG QRS Detector based on the Pan-Tomkins algorithm 
 
+## Authors
+* Michał Sznajder (Jagiellonian University) - technical contact (msznajder@gmail.com)
+* Marta Łukowska (Jagiellonian University)
+ 
 ## Intro
 
 The modules published in this repository are Python implementations of online and offline QRS complex detectors in ECG signal, based on the Pan-Tomkins algorithm (Pan J., Tompkins W. J., _A real-time QRS detection algorithm,_ IEEE Transactions on Biomedical Engineering, Vol. BME-32, No. 3, March 1985, pp. 230-236).
@@ -153,11 +157,6 @@ The Offline QRS Detector is hardware independent because it uses an ECG measurem
 ecg_measurements = ecg_data[:, 1] 
 ```
 The algorithm will work fine even if only measurement values without timestamps are available.
-
-## Authors
-* Michał Sznajder (Jagiellonian University) - technical contact (msznajder@gmail.com)
-* Marta Łukowska (Jagiellonian University)
- 
 
 ## Citation information
 If you use these modules in a research project, please consider citing it:
