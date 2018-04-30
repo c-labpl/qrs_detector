@@ -69,7 +69,7 @@ class QRSDetectorOnline(object):
         self.number_of_samples_stored = 200  # Change proportionally when adjusting frequency (in samples).
         self.possible_measurement_upper_limit = 10  # ECG device physiologically upper measurement limit.
 
-        self.filter_lowcut = 0.0
+        self.filter_lowcut = 0.1
         self.filter_highcut = 15.0
         self.filter_order = 1
 
